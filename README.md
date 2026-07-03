@@ -2,6 +2,10 @@
 
 Self-hosted modular dashboard application (Next.js + Docker).
 
+This project is **domain-template based** and supports automated deployment via install script.
+
+---
+
 ## Requirements
 
 * Linux server (Debian 12 / Ubuntu 24.04 recommended)
@@ -13,20 +17,54 @@ Self-hosted modular dashboard application (Next.js + Docker).
 
 ## Installation
 
-```bash
+### Recommended (automatic setup with domain injection)
+
+```bash id="inst1"
 unzip -o toolbox-dashboard.zip
-docker compose up -d --build
+chmod +x install.sh
+./install.sh example.com
 ```
+
+Optional subdomain:
+
+```bash id="inst2"
+./install.sh example.com toolbox
+```
+
+This will:
+
+* extract the project
+* replace all placeholders
+* configure domains
+* start Docker stack
+
+---
+
+## Domain placeholders
+
+The repository uses a template system (no hardcoded production domains):
+
+```env id="envtpl"
+WEBAUTHN_RP_ID=toolbox.domain.cc
+WEBAUTHN_RP_NAME=Toolbox
+WEBAUTHN_ORIGIN=https://toolbox.domain.cc
+```
+
+These values are automatically replaced during installation:
+
+| Placeholder       | Example             |
+| ----------------- | ------------------- |
+| toolbox.domain.cc | toolbox.example.com |
 
 ---
 
 ## Reverse Proxy (Caddy)
 
-The application is designed to run behind Caddy as reverse proxy with automatic HTTPS.
+The application is designed to run behind Caddy with automatic HTTPS.
 
 ### Example Docker Compose (Caddy)
 
-```yaml
+```yaml id="caddy1"
 services:
   caddy:
     image: caddy:latest
@@ -49,9 +87,11 @@ networks:
     external: true
 ```
 
+---
+
 ### Example Caddyfile
 
-```caddy
+```caddy id="caddy2"
 (block_common) {
     @blocked {
         path /.git* /.env* /composer.* /package.json
@@ -71,12 +111,7 @@ networks:
     }
 }
 
-sub.domain.tld {
-    handle /.well-known/acme-challenge/* {
-        root * /srv/security
-        file_server
-    }
-
+{{TOOLBOX_DOMAIN}} {
     handle {
         import block_common
         reverse_proxy toolbox-frontend:3000
@@ -86,20 +121,29 @@ sub.domain.tld {
 }
 ```
 
-Replace:
-
-* `sub.domain.tld` with your domain
-* `toolbox-frontend` with your container name if different
-
 ---
 
 ## Notes
 
-* All services run via Docker Compose
-* Caddy handles HTTPS automatically (Let’s Encrypt)
-* No additional setup required after `docker compose up -d --build`
-* Ensure the Docker network `webnet` exists before starting services
+* Docker Compose handles full stack deployment
+* Caddy provides automatic SSL (Let’s Encrypt)
+* No manual configuration required after install script
+* Ensure Docker network exists (auto-created by installer)
 
-```bash
+---
+
+## Network setup (optional manual step)
+
+If needed:
+
+```bash id="net1"
 docker network create webnet
 ```
+
+---
+
+## Important
+
+Do not deploy directly from repository without running the installer.
+
+All domain values are placeholders and must be replaced during setup.
