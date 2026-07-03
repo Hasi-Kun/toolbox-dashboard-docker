@@ -14,7 +14,7 @@ Self-hosted modular dashboard application (Next.js + Docker).
 ## Installation
 
 ```bash
-unzip -o toolbox-dashboard-i18n.zip
+unzip -o toolbox-dashboard.zip
 docker compose up -d --build
 ```
 
