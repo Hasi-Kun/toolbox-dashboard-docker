@@ -1,0 +1,296 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { KeyRound, Loader2, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } from "lucide-react";
+import { Sidebar } from "@/components/sidebar";
+import { Topbar } from "@/components/topbar";
+import { isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
+
+type Passkey = { id: number; nickname: string; created_at: string };
+type TwoFactorStatus = { totp_enabled: boolean; passkeys: Passkey[] };
+
+async function postJson(url: string, body?: unknown) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail ?? "Unbekannter Fehler");
+  return data;
+}
+
+export default function SecuritySettingsPage() {
+  const [status, setStatus] = useState<TwoFactorStatus | null>(null);
+  const [webauthnSupported, setWebauthnSupported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Passwort-Formular
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // TOTP-Setup
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; qrCode: string } | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function loadStatus() {
+    const res = await fetch("/api/account/2fa");
+    if (res.ok) setStatus(await res.json());
+  }
+
+  useEffect(() => {
+    loadStatus();
+    setWebauthnSupported(isWebAuthnSupported());
+  }, []);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setChangingPassword(true);
+    try {
+      await postJson("/api/account/password", { current_password: currentPassword, new_password: newPassword });
+      setNotice("Passwort erfolgreich geaendert.");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Aendern fehlgeschlagen");
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
+  async function handleStartTotpSetup() {
+    setError(null);
+    setBusy(true);
+    try {
+      const data = await postJson("/api/account/2fa/totp/setup/start");
+      setTotpSetup({ secret: data.secret, qrCode: data.qr_code });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Einrichtung fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleVerifyTotpSetup(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const data = await postJson("/api/account/2fa/totp/setup/verify", { code: totpCode });
+      setStatus(data);
+      setTotpSetup(null);
+      setTotpCode("");
+      setNotice("TOTP eingerichtet.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Code ungueltig");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisableTotp() {
+    if (!confirm("TOTP wirklich deaktivieren?")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const data = await postJson("/api/account/2fa/totp/disable");
+      setStatus(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Deaktivieren fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddPasskey() {
+    setError(null);
+    setBusy(true);
+    try {
+      const { options } = await postJson("/api/account/2fa/passkey/register/start");
+      const credential = await registerPasskey(options);
+      const nickname = prompt("Name fuer diesen Passkey (z.B. 'MacBook', 'YubiKey')", "Passkey") ?? "Passkey";
+      const data = await postJson("/api/account/2fa/passkey/register/verify", { credential, nickname });
+      setStatus(data);
+      setNotice("Passkey hinzugefuegt.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Passkey-Einrichtung fehlgeschlagen oder abgebrochen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeletePasskey(passkey: Passkey) {
+    if (!confirm(`Passkey '${passkey.nickname}' wirklich entfernen?`)) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/account/2fa/passkey/${passkey.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Entfernen fehlgeschlagen");
+      setStatus(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Entfernen fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <div className="flex flex-1 flex-col">
+        <Topbar />
+        <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
+          <h1 className="font-display text-2xl text-ink">Sicherheit</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Passwort aendern und 2FA-Methoden verwalten -- TOTP und Passkey koennen gleichzeitig aktiv sein.
+          </p>
+
+          {error && (
+            <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="mt-4 rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-ink">
+              {notice}
+            </p>
+          )}
+
+          {/* Passwort */}
+          <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+            <h2 className="font-display text-base text-ink">Passwort</h2>
+            <form onSubmit={handleChangePassword} className="mt-4 space-y-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Aktuelles Passwort</span>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  className="input"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Neues Passwort (mind. 12 Zeichen)</span>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={12}
+                  required
+                  className="input"
+                />
+              </label>
+              <button type="submit" disabled={changingPassword} className="submit-button w-auto px-4">
+                {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Passwort aendern"}
+              </button>
+            </form>
+          </section>
+
+          {/* TOTP */}
+          <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-base text-ink">Authenticator-App (TOTP)</h2>
+              {status && (
+                <span className={status.totp_enabled ? "text-xs text-signal" : "text-xs text-ink-muted"}>
+                  {status.totp_enabled ? "Aktiv" : "Nicht eingerichtet"}
+                </span>
+              )}
+            </div>
+
+            {status?.totp_enabled && !totpSetup && (
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-sm text-ink-muted">TOTP ist aktiv. Secret rotieren oder deaktivieren:</p>
+                <div className="flex gap-2">
+                  <button onClick={handleStartTotpSetup} disabled={busy} className="method-button w-auto px-3">
+                    <Smartphone className="h-4 w-4" /> Rotieren
+                  </button>
+                  <button onClick={handleDisableTotp} disabled={busy} className="method-button w-auto px-3 hover:border-critical/40 hover:text-critical">
+                    <ShieldOff className="h-4 w-4" /> Deaktivieren
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!status?.totp_enabled && !totpSetup && (
+              <button onClick={handleStartTotpSetup} disabled={busy} className="method-button mt-4">
+                <Plus className="h-4 w-4" /> TOTP einrichten
+              </button>
+            )}
+
+            {totpSetup && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-ink-muted">QR-Code mit deiner Authenticator-App scannen:</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={totpSetup.qrCode} alt="TOTP QR-Code" className="mx-auto rounded-lg border border-base-border" />
+                <p className="text-center font-mono text-xs text-ink-muted">{totpSetup.secret}</p>
+                <form onSubmit={handleVerifyTotpSetup} className="flex gap-2">
+                  <input
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    placeholder="123456"
+                    className="input font-mono tracking-widest"
+                  />
+                  <button type="submit" disabled={busy} className="submit-button w-auto px-4">
+                    <ShieldCheck className="h-4 w-4" /> Bestaetigen
+                  </button>
+                </form>
+              </div>
+            )}
+          </section>
+
+          {/* Passkeys */}
+          <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-base text-ink">Passkeys</h2>
+              {webauthnSupported && (
+                <button onClick={handleAddPasskey} disabled={busy} className="method-button w-auto px-3">
+                  <Plus className="h-4 w-4" /> Hinzufuegen
+                </button>
+              )}
+            </div>
+
+            {!webauthnSupported && (
+              <p className="mt-3 text-sm text-ink-muted">Dein Browser unterstuetzt keine Passkeys.</p>
+            )}
+
+            <ul className="mt-4 space-y-2">
+              {status?.passkeys.map((passkey) => (
+                <li
+                  key={passkey.id}
+                  className="flex items-center justify-between rounded-lg border border-base-border px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-ink-muted" />
+                    <span className="text-sm text-ink">{passkey.nickname}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeletePasskey(passkey)}
+                    disabled={busy}
+                    title="Entfernen"
+                    className="rounded-lg border border-base-border p-1.5 text-ink-muted hover:border-critical/40 hover:text-critical"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+              {status?.passkeys.length === 0 && (
+                <p className="text-sm text-ink-muted">Noch kein Passkey eingerichtet.</p>
+              )}
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}

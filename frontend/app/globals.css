@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-base text-ink font-body;
+    background-image:
+      linear-gradient(180deg, rgba(53, 224, 192, 0.04), transparent 40%),
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.015) 0px,
+        rgba(255, 255, 255, 0.015) 1px,
+        transparent 1px,
+        transparent 24px
+      );
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.signal.DEFAULT");
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Signature element: ein einzelner, ruhiger Radar-Sweep auf dem
+   Server-Status-Widget -- steht fuer "kontinuierliches Scannen",
+   bewusst nur an einer Stelle eingesetzt, nicht ueberall. */
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-sweep {
+  animation: radar-sweep 4s linear infinite;
+  transform-origin: center;
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-signal/50;
+  }
+
+  .method-button {
+    @apply flex w-full items-center gap-2 rounded-lg border border-base-border bg-base px-3 py-2.5 text-sm text-ink transition-colors hover:border-signal/40 hover:text-signal disabled:opacity-50;
+  }
+
+  .submit-button {
+    @apply flex w-full items-center justify-center gap-2 rounded-lg bg-signal px-3 py-2.5 text-sm font-medium text-base transition-opacity hover:opacity-90 disabled:opacity-50;
+  }
+}
+
+@keyframes gradient-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-gradient-pulse {
+  animation: gradient-pulse 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-pulse,
+  .radar-sweep {
+    animation: none;
+  }
+}

@@ -1,0 +1,98 @@
+services:
+  toolbox-frontend:
+    build:
+      context: ./frontend
+    container_name: toolbox-frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=http://toolbox-backend:8000
+      - BACKEND_INTERNAL_URL=http://toolbox-backend:8000
+    depends_on:
+      - toolbox-backend
+    networks:
+      - webnet
+      - toolbox-internal
+
+  toolbox-backend:
+    build:
+      context: ./backend
+    container_name: toolbox-backend
+    restart: unless-stopped
+    # Fuer ping/traceroute (ICMP) -- bewusst NUR diese eine Capability,
+    # kein --privileged und kein root-User (siehe Dockerfile: laeuft als appuser).
+    cap_add:
+      - NET_RAW
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://toolbox-redis:6379/0
+      - DATABASE_URL=sqlite:////data/toolbox.db
+      - DOCKER_PROXY_URL=http://docker-socket-proxy:2375
+    volumes:
+      - toolbox-db-data:/data
+    depends_on:
+      - toolbox-redis
+    networks:
+      - toolbox-internal
+
+  # Read-only Docker-API-Proxy fuer die Dashboard-Container-Uebersicht.
+  # WICHTIG: toolbox-backend bekommt NIEMALS direkten Zugriff auf
+  # /var/run/docker.sock (das waere effektiv root auf dem Host). Stattdessen
+  # nur dieser Proxy, der den echten Socket read-only mountet und ALLE
+  # schreibenden Operationen (Start/Stop/Exec/Create/...) global mit
+  # POST=0 deaktiviert -- selbst wenn das Backend kompromittiert wuerde,
+  # kaeme man ueber diesen Proxy nicht an Kontrolle ueber andere Container.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: toolbox-docker-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1
+      - INFO=1
+      - POST=0
+      # Alles andere bleibt beim sicheren Default (0): kein EXEC, kein BUILD,
+      # keine IMAGES/VOLUMES/NETWORKS/SECRETS/SWARM-Zugriff.
+    networks:
+      - toolbox-internal
+    # Falls der Start auf einem SELinux-Host fehlschlaegt: 'privileged: true'
+    # ergaenzen (auf Standard-Ubuntu ohne SELinux nicht noetig).
+
+  # Isolierter Container fuer aktive Scans (Nmap). Bewusst NUR hier die
+  # zusaetzlichen Capabilities -- Backend und Frontend bleiben unprivilegiert.
+  toolbox-scanner:
+    build:
+      context: ./scanner
+    container_name: toolbox-scanner
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      - REDIS_URL=redis://toolbox-redis:6379/0
+    depends_on:
+      - toolbox-redis
+    networks:
+      - toolbox-internal
+
+  toolbox-redis:
+    image: redis:7-alpine
+    container_name: toolbox-redis
+    restart: unless-stopped
+    volumes:
+      - toolbox-redis-data:/data
+    networks:
+      - toolbox-internal
+
+networks:
+  # Bereits vorhandenes externes Netzwerk, in dem Caddy laeuft.
+  webnet:
+    external: true
+  # Internes Netzwerk nur fuer Toolbox-Services, kein Zugriff von aussen.
+  toolbox-internal:
+    driver: bridge
+
+volumes:
+  toolbox-db-data:
+  toolbox-redis-data:

@@ -1,0 +1,41 @@
+caddy
+(block_common) {
+    @blocked {
+        path /.git* /.env* /composer.* /package.json
+    }
+    respond @blocked 403
+}
+
+(headers_common) {
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy ?strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        X-Frame-Options "SAMEORIGIN"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        -Server
+        -X-Powered-By
+    }
+}
+
+sub.domain.tld {
+    handle /.well-known/acme-challenge/* {
+        root * /srv/security
+        file_server
+    }
+
+    handle {
+        import block_common
+
+        reverse_proxy toolbox-frontend:3000 {
+            header_up X-Real-IP {remote_host}
+
+            transport http {
+                read_timeout 120s
+                write_timeout 120s
+            }
+        }
+    }
+
+    import headers_common
+}

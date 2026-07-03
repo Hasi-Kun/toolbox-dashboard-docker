@@ -1,0 +1,5 @@
+# Statische Assets (Favicons, Bilder, ...)
+
+Aktuell leer -- Next.js braucht diesen Ordner nicht zwingend, aber das
+Dockerfile kopiert ihn beim Build (`COPY --from=builder /app/public ./public`).
+Diese Datei existiert nur, damit der Ordner im Zip/Git erhalten bleibt.
