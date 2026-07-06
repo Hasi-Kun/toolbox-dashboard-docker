@@ -1,8 +1,13 @@
 # Toolbox Dashboard
 
-Self-hosted modular dashboard application (Next.js + Docker).
+Self-hosted modular dashboard application.
 
 This project is **domain-template based** and supports automated deployment via install script.
+
+<img width="1920" height="948" alt="grafik" src="https://github.com/user-attachments/assets/9b8e9284-53d9-4c43-981c-4267b8977980" />
+
+<img width="1920" height="949" alt="grafik" src="https://github.com/user-attachments/assets/073f86e6-7100-4397-b02d-8ea2446911ac" />
+
 
 ---
 
