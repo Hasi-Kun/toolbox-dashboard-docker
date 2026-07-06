@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowBigUp, ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowBigDown, ArrowBigUp, ArrowLeft, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 
@@ -15,8 +15,10 @@ type Detail = {
   status: string;
   username: string;
   created_at: string;
-  vote_count: number;
-  has_voted: boolean;
+  score: number;
+  upvotes: number;
+  downvotes: number;
+  user_vote: number;
   comments: Comment[];
 };
 type Me = { id: number; username: string; role: string };
@@ -47,8 +49,12 @@ export default function FeatureRequestDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  async function handleVote() {
-    await fetch(`/api/feature-requests/${params.id}/vote`, { method: "POST" });
+  async function handleVote(direction: "up" | "down") {
+    await fetch(`/api/feature-requests/${params.id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction }),
+    });
     load();
   }
 
@@ -102,19 +108,34 @@ export default function FeatureRequestDetailPage() {
           {detail && (
             <>
               <div className="flex items-start gap-4 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
-                <button
-                  type="button"
-                  onClick={handleVote}
-                  className={`flex shrink-0 flex-col items-center rounded-lg border px-3 py-2 ${
-                    detail.has_voted ? "border-signal/50 bg-signal/10 text-signal" : "border-base-border text-ink-muted hover:border-signal/30"
-                  }`}
-                >
-                  <ArrowBigUp className={`h-5 w-5 ${detail.has_voted ? "fill-signal" : ""}`} />
-                  <span className="text-sm font-medium">{detail.vote_count}</span>
-                </button>
+                <div className="flex shrink-0 flex-col items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleVote("up")}
+                    title="Upvote"
+                    className={`rounded-t-lg border px-3 py-1.5 ${
+                      detail.user_vote === 1 ? "border-signal/50 bg-signal/10 text-signal" : "border-base-border text-ink-muted hover:border-signal/30"
+                    }`}
+                  >
+                    <ArrowBigUp className={`h-5 w-5 ${detail.user_vote === 1 ? "fill-signal" : ""}`} />
+                  </button>
+                  <span className="text-sm font-medium text-ink">{detail.score}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleVote("down")}
+                    title="Downvote"
+                    className={`rounded-b-lg border px-3 py-1.5 ${
+                      detail.user_vote === -1 ? "border-critical/50 bg-critical/10 text-critical" : "border-base-border text-ink-muted hover:border-critical/30"
+                    }`}
+                  >
+                    <ArrowBigDown className={`h-5 w-5 ${detail.user_vote === -1 ? "fill-critical" : ""}`} />
+                  </button>
+                </div>
                 <div className="min-w-0 flex-1">
                   <h1 className="font-display text-xl text-ink">{detail.title}</h1>
-                  <p className="mt-1 text-xs text-ink-muted">von {detail.username}</p>
+                  <p className="mt-1 text-xs text-ink-muted">
+                    von {detail.username} &middot; {detail.upvotes} Pro / {detail.downvotes} Contra
+                  </p>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-ink">{detail.description}</p>
                 </div>
               </div>

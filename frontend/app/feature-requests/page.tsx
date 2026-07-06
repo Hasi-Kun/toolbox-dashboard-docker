@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowBigUp, Download, MessageCircle, Plus } from "lucide-react";
+import { ArrowBigDown, ArrowBigUp, Download, MessageCircle, Plus } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 
@@ -13,9 +13,11 @@ type FeatureRequestSummary = {
   status: string;
   username: string;
   created_at: string;
-  vote_count: number;
+  score: number;
+  upvotes: number;
+  downvotes: number;
   comment_count: number;
-  has_voted: boolean;
+  user_vote: number;
 };
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -43,16 +45,23 @@ export default function FeatureRequestsPage() {
 
   useEffect(load, []);
 
-  async function handleVote(id: number) {
-    // Optimistisches Update fuer sofortiges Feedback, dann echten Stand nachladen
+  async function handleVote(id: number, direction: "up" | "down") {
     setRequests((prev) =>
       prev
-        ? prev.map((r) =>
-            r.id === id ? { ...r, has_voted: !r.has_voted, vote_count: r.vote_count + (r.has_voted ? -1 : 1) } : r
-          )
+        ? prev.map((r) => {
+            if (r.id !== id) return r;
+            const newValue = direction === "up" ? 1 : -1;
+            const wasSame = r.user_vote === newValue;
+            const nextVote = wasSame ? 0 : newValue;
+            return { ...r, user_vote: nextVote, score: r.score - r.user_vote + nextVote };
+          })
         : prev
     );
-    await fetch(`/api/feature-requests/${id}/vote`, { method: "POST" });
+    await fetch(`/api/feature-requests/${id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction }),
+    });
     load();
   }
 
@@ -139,16 +148,29 @@ export default function FeatureRequestsPage() {
                     const status = STATUS_LABELS[r.status] ?? STATUS_LABELS.open;
                     return (
                       <div key={r.id} className="flex items-start gap-4 rounded-xl border border-base-border bg-base-elevated p-4 shadow-card">
-                        <button
-                          type="button"
-                          onClick={() => handleVote(r.id)}
-                          className={`flex shrink-0 flex-col items-center rounded-lg border px-3 py-2 transition-colors ${
-                            r.has_voted ? "border-signal/50 bg-signal/10 text-signal" : "border-base-border text-ink-muted hover:border-signal/30"
-                          }`}
-                        >
-                          <ArrowBigUp className={`h-5 w-5 ${r.has_voted ? "fill-signal" : ""}`} />
-                          <span className="text-sm font-medium">{r.vote_count}</span>
-                        </button>
+                        <div className="flex shrink-0 flex-col items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleVote(r.id, "up")}
+                            title="Upvote"
+                            className={`rounded-t-lg border px-2 py-1 transition-colors ${
+                              r.user_vote === 1 ? "border-signal/50 bg-signal/10 text-signal" : "border-base-border text-ink-muted hover:border-signal/30"
+                            }`}
+                          >
+                            <ArrowBigUp className={`h-4 w-4 ${r.user_vote === 1 ? "fill-signal" : ""}`} />
+                          </button>
+                          <span className="text-sm font-medium text-ink">{r.score}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleVote(r.id, "down")}
+                            title="Downvote"
+                            className={`rounded-b-lg border px-2 py-1 transition-colors ${
+                              r.user_vote === -1 ? "border-critical/50 bg-critical/10 text-critical" : "border-base-border text-ink-muted hover:border-critical/30"
+                            }`}
+                          >
+                            <ArrowBigDown className={`h-4 w-4 ${r.user_vote === -1 ? "fill-critical" : ""}`} />
+                          </button>
+                        </div>
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
@@ -160,6 +182,7 @@ export default function FeatureRequestsPage() {
                           <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{r.description}</p>
                           <div className="mt-2 flex items-center gap-3 text-xs text-ink-muted">
                             <span>von {r.username}</span>
+                            <span>{r.upvotes} Pro / {r.downvotes} Contra</span>
                             <span className="flex items-center gap-1">
                               <MessageCircle className="h-3 w-3" /> {r.comment_count}
                             </span>

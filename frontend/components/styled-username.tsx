@@ -37,6 +37,13 @@ export function StyledUsername({
   } else if (applyStyle && displayNameStyle === "particles") {
     nameStyle.color = displayNameColor;
     nameClassName += " styled-name-particles";
+  } else if (applyStyle && displayNameStyle === "twinkle") {
+    nameClassName += " styled-name-twinkle";
+    nameStyle.backgroundImage = `linear-gradient(110deg, ${displayNameColor} 0%, ${displayNameColor} 40%, ${displayNameGradientColor} 50%, ${displayNameColor} 60%, ${displayNameColor} 100%)`;
+    nameStyle.WebkitBackgroundClip = "text";
+    nameStyle.backgroundClip = "text";
+    nameStyle.color = "transparent";
+    (nameStyle as Record<string, string>)["--twinkle-glow"] = displayNameGradientColor;
   }
 
   return (

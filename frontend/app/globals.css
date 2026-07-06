@@ -97,11 +97,63 @@
   animation: styled-name-sparkle 2.2s ease-in-out infinite;
 }
 
+@keyframes styled-name-shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+@keyframes styled-name-twinkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(90deg);
+  }
+}
+
+.styled-name-twinkle {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  background-size: 200% auto;
+  animation: styled-name-shine 3s linear infinite;
+}
+
+.styled-name-twinkle::before {
+  content: "\2726"; /* ✦ */
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  font-size: 14px;
+  color: var(--twinkle-glow, #ffffff);
+  text-shadow: 0 0 5px var(--twinkle-glow, #9cf);
+  pointer-events: none;
+  animation: styled-name-twinkle 2s infinite ease-in-out;
+}
+
+.styled-name-twinkle::after {
+  content: "\2727"; /* ✧ */
+  position: absolute;
+  bottom: -4px;
+  left: -12px;
+  font-size: 12px;
+  color: var(--twinkle-glow, #ffffff);
+  text-shadow: 0 0 5px var(--twinkle-glow, #9cf);
+  pointer-events: none;
+  animation: styled-name-twinkle 2.5s infinite ease-in-out 1s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-pulse,
   .radar-sweep,
   .premium-badge,
-  .styled-name-particles {
+  .styled-name-particles,
+  .styled-name-twinkle,
+  .styled-name-twinkle::before,
+  .styled-name-twinkle::after {
     animation: none;
   }
 }

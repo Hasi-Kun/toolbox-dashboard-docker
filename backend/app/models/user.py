@@ -203,6 +203,9 @@ class FeatureRequestVote(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     request_id: Mapped[int] = mapped_column(ForeignKey("feature_requests.id"), nullable=False, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # +1 = Upvote, -1 = Downvote. server_default=1, weil alle VOR dieser
+    # Erweiterung erstellten Stimmen reine Upvotes waren.
+    vote_value: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     request: Mapped["FeatureRequest"] = relationship(back_populates="votes")

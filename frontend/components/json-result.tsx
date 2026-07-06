@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
 
 /**
  * Rendert beliebige JSON-Ergebnisse lesbar, ohne dass jedes der Tools eine
@@ -56,14 +57,29 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
   }
 
   if (typeof value === "number") {
-    return <span className="font-mono text-ink">{value}</span>;
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="font-mono text-ink">{value}</span>
+        <CopyButton text={String(value)} />
+      </span>
+    );
   }
 
   if (typeof value === "string") {
     if (value.length > 60 || value.includes("\n")) {
-      return <pre className="whitespace-pre-wrap break-all font-mono text-xs text-ink">{value}</pre>;
+      return (
+        <span className="flex items-start gap-1.5">
+          <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs text-ink">{value}</pre>
+          <CopyButton text={value} className="mt-0.5" />
+        </span>
+      );
     }
-    return <span className="text-ink">{value}</span>;
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-ink">{value}</span>
+        <CopyButton text={value} />
+      </span>
+    );
   }
 
   if (Array.isArray(value)) {
@@ -119,8 +135,12 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
             );
           }
           if (key === "transcript" && Array.isArray(val)) {
+            const transcriptText = (val as string[]).join("\n");
             return (
-              <div key={key} className="pt-1">
+              <div key={key} className="group pt-1">
+                <div className="mb-1 flex justify-end">
+                  <CopyButton text={transcriptText} className="opacity-100" />
+                </div>
                 <pre className="max-h-96 overflow-y-auto rounded-lg border border-base-border bg-base p-3 font-mono text-xs leading-relaxed text-ink">
                   {(val as string[]).map((line, i) => (
                     <div
@@ -141,8 +161,8 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
               key={key}
               className={
                 depth === 0
-                  ? "grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-b border-base-border pb-2"
-                  : "grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1"
+                  ? "group grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-b border-base-border pb-2"
+                  : "group grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1"
               }
             >
               <dt className="whitespace-nowrap text-xs font-medium uppercase tracking-wide text-ink-muted">
@@ -185,7 +205,7 @@ function ObjectTable({ items }: { items: Record<string, unknown>[] }) {
           {items.map((item, i) => (
             <tr key={i} className="border-b border-base-border/60 last:border-0">
               {columns.map((col) => (
-                <td key={col} className="px-3 py-2 align-top">
+                <td key={col} className="group px-3 py-2 align-top">
                   <ValueRenderer value={item[col]} depth={99} />
                 </td>
               ))}

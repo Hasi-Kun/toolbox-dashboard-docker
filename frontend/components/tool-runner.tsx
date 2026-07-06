@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { Copy, Loader2, Play } from "lucide-react";
 import { JsonResult } from "@/components/json-result";
+import { CopyButton } from "@/components/copy-button";
 import type { FieldSpec } from "@/lib/tool-forms";
 
 type FormValue = string | number | boolean | string[];
@@ -129,7 +130,16 @@ export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[]
 
       {result !== null && (
         <div className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
-          <h3 className="mb-4 font-display text-sm text-ink-muted">Ergebnis</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-display text-sm text-ink-muted">Ergebnis</h3>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2)).catch(() => {})}
+              className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-1 text-xs text-ink-muted hover:text-ink"
+            >
+              <Copy className="h-3.5 w-3.5" /> Alles kopieren
+            </button>
+          </div>
           <JsonResult data={result} />
         </div>
       )}

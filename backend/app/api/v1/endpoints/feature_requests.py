@@ -67,6 +67,17 @@ class UpdateStatusPayload(BaseModel):
         return v
 
 
+class VotePayload(BaseModel):
+    direction: str
+
+    @field_validator("direction")
+    @classmethod
+    def validate_direction(cls, v: str) -> str:
+        if v not in ("up", "down"):
+            raise ValueError("direction muss 'up' oder 'down' sein")
+        return v
+
+
 class RequestSummaryOut(BaseModel):
     id: int
     title: str
@@ -74,9 +85,11 @@ class RequestSummaryOut(BaseModel):
     status: str
     username: str
     created_at: str
-    vote_count: int
+    score: int
+    upvotes: int
+    downvotes: int
     comment_count: int
-    has_voted: bool
+    user_vote: int
 
 
 class CommentOut(BaseModel):
@@ -90,33 +103,48 @@ class RequestDetailOut(RequestSummaryOut):
     comments: list[CommentOut]
 
 
-def _vote_count(db: Session, request_id: int) -> int:
-    return db.query(func.count(FeatureRequestVote.id)).filter(FeatureRequestVote.request_id == request_id).scalar() or 0
+def _score(db: Session, request_id: int) -> int:
+    return db.query(func.coalesce(func.sum(FeatureRequestVote.vote_value), 0)).filter(
+        FeatureRequestVote.request_id == request_id
+    ).scalar() or 0
 
 
-def _has_voted(db: Session, request_id: int, user_id: int) -> bool:
-    return (
+def _upvotes(db: Session, request_id: int) -> int:
+    return db.query(func.count(FeatureRequestVote.id)).filter(
+        FeatureRequestVote.request_id == request_id, FeatureRequestVote.vote_value == 1
+    ).scalar() or 0
+
+
+def _downvotes(db: Session, request_id: int) -> int:
+    return db.query(func.count(FeatureRequestVote.id)).filter(
+        FeatureRequestVote.request_id == request_id, FeatureRequestVote.vote_value == -1
+    ).scalar() or 0
+
+
+def _user_vote(db: Session, request_id: int, user_id: int) -> int:
+    vote = (
         db.query(FeatureRequestVote)
         .filter(FeatureRequestVote.request_id == request_id, FeatureRequestVote.user_id == user_id)
         .first()
-        is not None
+    )
+    return vote.vote_value if vote else 0
+
+
+def _summary(db: Session, fr: FeatureRequest, user_id: int) -> RequestSummaryOut:
+    return RequestSummaryOut(
+        id=fr.id, title=fr.title, description=fr.description, status=fr.status, username=fr.username,
+        created_at=fr.created_at.isoformat(), score=_score(db, fr.id),
+        upvotes=_upvotes(db, fr.id), downvotes=_downvotes(db, fr.id),
+        comment_count=len(fr.comments), user_vote=_user_vote(db, fr.id, user_id),
     )
 
 
 @router.get("", response_model=list[RequestSummaryOut])
 async def list_requests(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[RequestSummaryOut]:
     requests = db.query(FeatureRequest).all()
-    summaries = [
-        RequestSummaryOut(
-            id=r.id, title=r.title, description=r.description, status=r.status, username=r.username,
-            created_at=r.created_at.isoformat(), vote_count=_vote_count(db, r.id),
-            comment_count=len(r.comments), has_voted=_has_voted(db, r.id, user.id),
-        )
-        for r in requests
-    ]
-    # Meiste Stimmen zuerst, bei Gleichstand neueste zuerst
+    summaries = [_summary(db, r, user.id) for r in requests]
     summaries.sort(key=lambda s: s.created_at, reverse=True)
-    summaries.sort(key=lambda s: s.vote_count, reverse=True)
+    summaries.sort(key=lambda s: s.score, reverse=True)
     return summaries
 
 
@@ -130,10 +158,7 @@ async def create_request(
     db.add(fr)
     db.commit()
     db.refresh(fr)
-    return RequestSummaryOut(
-        id=fr.id, title=fr.title, description=fr.description, status=fr.status, username=fr.username,
-        created_at=fr.created_at.isoformat(), vote_count=0, comment_count=0, has_voted=False,
-    )
+    return _summary(db, fr, user.id)
 
 
 @router.get("/export.csv")
@@ -144,11 +169,11 @@ async def export_csv(db: Session = Depends(get_db), _user: User = Depends(get_cu
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["id", "title", "description", "status", "username", "created_at", "vote_count", "comment_count"])
+    writer.writerow(["id", "title", "description", "status", "username", "created_at", "score", "upvotes", "downvotes", "comment_count"])
     for r in requests:
         writer.writerow([
             r.id, r.title, r.description, r.status, r.username, r.created_at.isoformat(),
-            _vote_count(db, r.id), len(r.comments),
+            _score(db, r.id), _upvotes(db, r.id), _downvotes(db, r.id), len(r.comments),
         ])
 
     buffer.seek(0)
@@ -166,33 +191,41 @@ async def get_request(request_id: int, db: Session = Depends(get_db), user: User
         raise HTTPException(status_code=404, detail="Feature-Request nicht gefunden")
 
     comments = sorted(fr.comments, key=lambda c: c.created_at)
+    summary = _summary(db, fr, user.id)
     return RequestDetailOut(
-        id=fr.id, title=fr.title, description=fr.description, status=fr.status, username=fr.username,
-        created_at=fr.created_at.isoformat(), vote_count=_vote_count(db, fr.id), comment_count=len(comments),
-        has_voted=_has_voted(db, fr.id, user.id),
+        **summary.model_dump(),
         comments=[CommentOut(id=c.id, username=c.username, comment=c.comment, created_at=c.created_at.isoformat()) for c in comments],
     )
 
 
 @router.post("/{request_id}/vote")
-async def toggle_vote(request_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+async def cast_vote(request_id: int, payload: VotePayload, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     fr = db.get(FeatureRequest, request_id)
     if fr is None:
         raise HTTPException(status_code=404, detail="Feature-Request nicht gefunden")
 
+    new_value = 1 if payload.direction == "up" else -1
     existing = (
         db.query(FeatureRequestVote)
         .filter(FeatureRequestVote.request_id == request_id, FeatureRequestVote.user_id == user.id)
         .first()
     )
-    if existing:
+
+    if existing and existing.vote_value == new_value:
         db.delete(existing)
         db.commit()
-        return {"voted": False, "vote_count": _vote_count(db, request_id)}
+        user_vote = 0
+    elif existing:
+        existing.vote_value = new_value
+        db.add(existing)
+        db.commit()
+        user_vote = new_value
+    else:
+        db.add(FeatureRequestVote(request_id=request_id, user_id=user.id, vote_value=new_value))
+        db.commit()
+        user_vote = new_value
 
-    db.add(FeatureRequestVote(request_id=request_id, user_id=user.id))
-    db.commit()
-    return {"voted": True, "vote_count": _vote_count(db, request_id)}
+    return {"user_vote": user_vote, "score": _score(db, request_id), "upvotes": _upvotes(db, request_id), "downvotes": _downvotes(db, request_id)}
 
 
 @router.post("/{request_id}/comments", response_model=CommentOut)
@@ -219,7 +252,6 @@ async def delete_comment(
     comment = db.get(FeatureRequestComment, comment_id)
     if comment is None or comment.request_id != request_id:
         raise HTTPException(status_code=404, detail="Kommentar nicht gefunden")
-    # Eigene Kommentare darf jeder loeschen, fremde nur ein Admin
     if comment.user_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Nur eigene Kommentare oder als Admin loeschbar")
     db.delete(comment)
@@ -239,11 +271,7 @@ async def update_status(
     db.add(fr)
     db.commit()
     db.refresh(fr)
-    return RequestSummaryOut(
-        id=fr.id, title=fr.title, description=fr.description, status=fr.status, username=fr.username,
-        created_at=fr.created_at.isoformat(), vote_count=_vote_count(db, fr.id), comment_count=len(fr.comments),
-        has_voted=_has_voted(db, fr.id, admin.id),
-    )
+    return _summary(db, fr, admin.id)
 
 
 @router.delete("/{request_id}")

@@ -12,6 +12,7 @@ const STYLES: { value: string; label: string }[] = [
   { value: "solid", label: "Einfarbig" },
   { value: "gradient", label: "Farbverlauf" },
   { value: "particles", label: "Glanz-Effekt" },
+  { value: "twinkle", label: "Twinkle" },
 ];
 
 export default function DisplayStylePage() {
@@ -121,7 +122,7 @@ export default function DisplayStylePage() {
                     <span className="mb-1.5 block text-xs font-medium text-ink-muted">Farbe</span>
                     <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-16 rounded border border-base-border bg-base" />
                   </label>
-                  {style === "gradient" && (
+                  {(style === "gradient" || style === "twinkle") && (
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-medium text-ink-muted">Verlaufsfarbe</span>
                       <input type="color" value={gradientColor} onChange={(e) => setGradientColor(e.target.value)} className="h-9 w-16 rounded border border-base-border bg-base" />

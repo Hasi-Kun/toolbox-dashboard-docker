@@ -62,7 +62,7 @@ export default function ToolPage() {
       <Sidebar />
       <div className="flex flex-1 flex-col">
         <Topbar />
-        <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
+        <main className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-6">
           {tool && (
             <Link
               href={`/category/${tool.category}`}

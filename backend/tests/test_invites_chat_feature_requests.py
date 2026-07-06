@@ -212,14 +212,29 @@ def test_feature_request_create_and_vote(client):
     r = client.post("/api/v1/feature-requests", json={"title": "Dark Mode", "description": "Waere schoen"})
     assert r.status_code == 200
     req_id = r.json()["id"]
-    assert r.json()["vote_count"] == 0
+    assert r.json()["score"] == 0
 
-    r = client.post(f"/api/v1/feature-requests/{req_id}/vote")
-    assert r.json() == {"voted": True, "vote_count": 1}
+    r = client.post(f"/api/v1/feature-requests/{req_id}/vote", json={"direction": "up"})
+    assert r.json() == {"user_vote": 1, "score": 1, "upvotes": 1, "downvotes": 0}
 
     # Erneuter Klick entfernt die Stimme wieder (Toggle)
-    r = client.post(f"/api/v1/feature-requests/{req_id}/vote")
-    assert r.json() == {"voted": False, "vote_count": 0}
+    r = client.post(f"/api/v1/feature-requests/{req_id}/vote", json={"direction": "up"})
+    assert r.json() == {"user_vote": 0, "score": 0, "upvotes": 0, "downvotes": 0}
+
+
+def test_feature_request_downvote(client):
+    password = _create_admin()
+    _login_with_totp_setup(client, "admin", password)
+
+    r = client.post("/api/v1/feature-requests", json={"title": "X", "description": "Y"})
+    req_id = r.json()["id"]
+
+    r = client.post(f"/api/v1/feature-requests/{req_id}/vote", json={"direction": "down"})
+    assert r.json() == {"user_vote": -1, "score": -1, "upvotes": 0, "downvotes": 1}
+
+    # Wechsel von Down- zu Upvote
+    r = client.post(f"/api/v1/feature-requests/{req_id}/vote", json={"direction": "up"})
+    assert r.json() == {"user_vote": 1, "score": 1, "upvotes": 1, "downvotes": 0}
 
 
 def test_feature_request_comments_and_detail(client):
@@ -243,7 +258,7 @@ def test_feature_request_sorted_by_votes(client):
     r2 = client.post("/api/v1/feature-requests", json={"title": "Viele Stimmen", "description": "x"})
     id2 = r2.json()["id"]
 
-    client.post(f"/api/v1/feature-requests/{id2}/vote")
+    client.post(f"/api/v1/feature-requests/{id2}/vote", json={"direction": "up"})
 
     listing = client.get("/api/v1/feature-requests").json()
     assert listing[0]["title"] == "Viele Stimmen"
