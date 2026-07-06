@@ -7,6 +7,8 @@ import { AlertCircle } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { categories } from "@/lib/categories";
+import { useLanguage } from "@/components/language-provider";
+import type { TranslationKey } from "@/lib/i18n";
 
 type Tool = {
   slug: string;
@@ -18,10 +20,15 @@ type Tool = {
 
 export default function CategoryPage() {
   const params = useParams<{ slug: string }>();
+  const { t } = useLanguage();
   const [tools, setTools] = useState<Tool[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const category = categories.find((c) => c.slug === params.slug);
+  const categoryName = category ? t(`categories.${category.slug}.name` as TranslationKey) : params.slug;
+  const categoryDescription = category
+    ? t(`categories.${category.slug}.description` as TranslationKey)
+    : "Unbekannte Kategorie";
 
   useEffect(() => {
     fetch("/api/tools")
@@ -39,10 +46,8 @@ export default function CategoryPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">{category?.name ?? params.slug}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {category?.description ?? "Unbekannte Kategorie"}
-          </p>
+          <h1 className="font-display text-2xl text-ink">{categoryName}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{categoryDescription}</p>
 
           {error && (
             <p className="mt-4 flex items-center gap-2 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
@@ -58,17 +63,33 @@ export default function CategoryPage() {
                 className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
               >
                 <div className="flex items-center justify-between">
-                  <p className="font-display text-base text-ink">{tool.name}</p>
+                  <p className="font-display text-base text-ink">{t(`tools.${tool.slug}.name` as TranslationKey)}</p>
                   {tool.is_active_scan && (
                     <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
                       Scan
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-ink-muted">{tool.description}</p>
+                <p className="mt-1 text-sm text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
                 <p className="mt-3 font-mono text-xs text-ink-muted">{tool.slug}</p>
               </Link>
             ))}
+
+            {params.slug === "certificates" && (
+              <Link
+                href="/tools/openssl-file-inspector"
+                className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-display text-base text-ink">OpenSSL Datei-Inspektor</p>
+                  <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">Upload</span>
+                </div>
+                <p className="mt-1 text-sm text-ink-muted">
+                  Zertifikat, PKCS#7/S-MIME oder CSR hochladen und analysieren -- Datei wird sofort danach geloescht.
+                </p>
+                <p className="mt-3 font-mono text-xs text-ink-muted">openssl-file-inspector</p>
+              </Link>
+            )}
 
             {tools?.length === 0 && (
               <p className="text-sm text-ink-muted">

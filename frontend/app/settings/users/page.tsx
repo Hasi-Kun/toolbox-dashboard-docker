@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { KeyRound, Plus, RotateCcw, ShieldOff, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { useIsAdmin, AdminOnlyNotice } from "@/components/use-is-admin";
+import { PremiumBadge } from "@/components/premium-badge";
 
 type UserRow = {
   id: number;
@@ -11,9 +13,13 @@ type UserRow = {
   role: string;
   is_active: boolean;
   has_2fa: boolean;
+  can_invite: boolean;
+  is_premium: boolean;
+  premium_badge_color: string;
 };
 
 export default function UsersSettingsPage() {
+  const { isAdmin, loaded } = useIsAdmin();
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -94,6 +100,24 @@ export default function UsersSettingsPage() {
     await loadUsers();
   }
 
+  async function handleToggleInvite(user: UserRow) {
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ can_invite: !user.can_invite }),
+    });
+    await loadUsers();
+  }
+
+  async function handleTogglePremium(user: UserRow) {
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_premium: !user.is_premium }),
+    });
+    await loadUsers();
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -106,6 +130,10 @@ export default function UsersSettingsPage() {
             oeffentliche Registrierung -- alle Accounts werden hier oder per CLI angelegt.
           </p>
 
+          {loaded && !isAdmin && <AdminOnlyNotice />}
+
+          {isAdmin && (
+            <>
           {error && (
             <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
               {error}
@@ -174,13 +202,20 @@ export default function UsersSettingsPage() {
                   <th className="px-4 py-3">Rolle</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">2FA</th>
+                  <th className="px-4 py-3">Invite-Recht</th>
+                  <th className="px-4 py-3">Premium</th>
                   <th className="px-4 py-3 text-right">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
                 {users?.map((user) => (
                   <tr key={user.id} className="border-t border-base-border">
-                    <td className="px-4 py-3 text-ink">{user.username}</td>
+                    <td className="px-4 py-3 text-ink">
+                      <span className="flex items-center gap-1.5">
+                        {user.username}
+                        {user.is_premium && <PremiumBadge color={user.premium_badge_color} />}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-ink-muted">{user.role}</td>
                     <td className="px-4 py-3">
                       <span className={user.is_active ? "text-signal" : "text-ink-muted"}>
@@ -191,6 +226,24 @@ export default function UsersSettingsPage() {
                       <span className={user.has_2fa ? "text-signal" : "text-warn"}>
                         {user.has_2fa ? "Eingerichtet" : "Ausstehend"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleInvite(user)}
+                        className={`rounded-full px-2 py-0.5 text-xs ${user.can_invite ? "bg-signal/10 text-signal" : "bg-base-border text-ink-muted"}`}
+                      >
+                        {user.can_invite ? "Erlaubt" : "Gesperrt"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePremium(user)}
+                        className={`rounded-full px-2 py-0.5 text-xs ${user.is_premium ? "bg-signal/10 text-signal" : "bg-base-border text-ink-muted"}`}
+                      >
+                        {user.is_premium ? "Aktiv" : "Inaktiv"}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
@@ -210,6 +263,8 @@ export default function UsersSettingsPage() {
               </tbody>
             </table>
           </div>
+            </>
+          )}
         </main>
       </div>
     </div>

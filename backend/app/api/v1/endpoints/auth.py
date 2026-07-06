@@ -1,13 +1,16 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 from app.api.deps import get_current_user
+from app.core.audit import get_client_ip, log_audit_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.rate_limit import enforce_rate_limit
-from app.core.security import verify_password
+from app.core.security import hash_password, verify_password
 from app.core.sessions import (
     create_pending,
     create_session,
@@ -23,7 +26,7 @@ from app.core.webauthn_helpers import (
     verify_authentication,
     verify_registration,
 )
-from app.models.user import User, WebAuthnCredential
+from app.models.user import InviteCode, User, WebAuthnCredential
 
 settings = get_settings()
 router = APIRouter()
@@ -92,6 +95,9 @@ class MeResponse(BaseModel):
     username: str
     role: str
     has_2fa: bool
+    can_invite: bool
+    is_premium: bool
+    premium_badge_color: str
 
 
 # --- Schritt 1: Passwort -----------------------------------------------------
@@ -101,12 +107,15 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     await enforce_rate_limit(request, bucket="auth-login", limit=settings.login_rate_limit_per_minute)
 
     user = db.query(User).filter(User.username == payload.username).first()
+    ip = get_client_ip(request)
 
     # Bewusst derselbe Fehlertext bei unbekanntem Username UND falschem
     # Passwort -- verhindert, dass ein Angreifer gueltige Usernamen erraten kann.
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+        log_audit_event(db, "login_password", success=False, username=payload.username, ip_address=ip)
         raise HTTPException(status_code=401, detail="Ungueltiger Benutzername oder Passwort")
 
+    log_audit_event(db, "login_password", success=True, username=user.username, ip_address=ip)
     pending_id = await create_pending(user.id, "login")
 
     methods: list[str] = []
@@ -122,6 +131,73 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     )
 
 
+# --- Registrierung per Invite-Code ------------------------------------------
+
+class RegisterRequest(BaseModel):
+    invite_code: str
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 64:
+            raise ValueError("Ungueltiger Benutzername")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 12:
+            raise ValueError("Passwort muss mindestens 12 Zeichen haben")
+        return v
+
+
+@router.post("/register", response_model=LoginResponse)
+async def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+    # Rate-Limit verhindert Brute-Forcing von Invite-Codes
+    await enforce_rate_limit(request, bucket="auth-register", limit=settings.login_rate_limit_per_minute)
+
+    invite = db.query(InviteCode).filter(InviteCode.code == payload.invite_code.strip()).first()
+    if invite is None:
+        raise HTTPException(status_code=400, detail="Ungueltiger Einladungscode")
+    if invite.used_at is not None:
+        raise HTTPException(status_code=400, detail="Dieser Einladungscode wurde bereits verwendet")
+    if invite.expires_at is not None:
+        expires_at = invite.expires_at
+        if expires_at.tzinfo is None:
+            # SQLite gibt DateTime(timezone=True)-Werte als naive datetimes
+            # zurueck -- wir schreiben ausschliesslich UTC, also hier explizit
+            # als UTC interpretieren statt versehentlich lokale Zeit anzunehmen.
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Dieser Einladungscode ist abgelaufen")
+
+    if db.query(User).filter(User.username == payload.username).first() is not None:
+        raise HTTPException(status_code=409, detail="Benutzername bereits vergeben")
+
+    user = User(
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        role=invite.role,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()  # user.id verfuegbar machen, ohne schon zu committen
+
+    invite.used_by_id = user.id
+    invite.used_at = datetime.now(timezone.utc)
+    db.add(invite)
+    db.commit()
+    db.refresh(user)
+
+    # Direkt in den 2FA-Setup-Flow uebergeben -- exakt derselbe Mechanismus
+    # wie beim normalen Login, damit das Frontend dieselbe UI wiederverwenden kann.
+    pending_id = await create_pending(user.id, "login")
+    return LoginResponse(pending_token=pending_id, needs_2fa_setup=True, available_methods=[])
+
+
 # --- Schritt 2a: TOTP-Verifikation (Account hat bereits 2FA) ----------------
 
 @router.post("/2fa/totp/verify")
@@ -134,8 +210,10 @@ async def verify_totp_login(
     if not user.totp_enabled or not user.totp_secret:
         raise HTTPException(status_code=400, detail="TOTP ist fuer diesen Account nicht aktiviert")
     if not verify_code(user.totp_secret, payload.code):
+        log_audit_event(db, "login_2fa", success=False, username=user.username, ip_address=get_client_ip(request))
         raise HTTPException(status_code=401, detail="Code ungueltig oder abgelaufen")
 
+    log_audit_event(db, "login_2fa", success=True, username=user.username, ip_address=get_client_ip(request))
     session_id = await create_session(user.id)
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
@@ -273,4 +351,7 @@ async def logout(request: Request, response: Response) -> dict:
 
 @router.get("/me", response_model=MeResponse)
 async def me(user: User = Depends(get_current_user)) -> MeResponse:
-    return MeResponse(id=user.id, username=user.username, role=user.role, has_2fa=user.has_2fa)
+    return MeResponse(
+        id=user.id, username=user.username, role=user.role, has_2fa=user.has_2fa,
+        can_invite=user.can_invite, is_premium=user.is_premium, premium_badge_color=user.premium_badge_color,
+    )

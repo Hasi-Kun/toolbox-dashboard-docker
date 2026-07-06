@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,6 +16,10 @@ import {
   Users,
   Lock,
   Palette,
+  Lightbulb,
+  UserPlus,
+  ScrollText,
+  Eye,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { cn } from "@/lib/utils";
@@ -30,11 +35,27 @@ const iconBySlug: Record<string, React.ComponentType<{ className?: string }>> = 
   website: Gauge,
   utilities: Wrench,
   certificates: FileKey,
+  osint: Eye,
 };
 
 export function Sidebar() {
   const pathname = usePathname();
   const { t } = useLanguage();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [canInvite, setCanInvite] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me: { role?: string; can_invite?: boolean } | null) => {
+        setIsAdmin(me?.role === "admin");
+        setCanInvite(Boolean(me?.can_invite));
+      })
+      .catch(() => {
+        setIsAdmin(false);
+        setCanInvite(false);
+      });
+  }, []);
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-base-border bg-base-elevated/60 md:flex md:flex-col">
@@ -45,6 +66,12 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <SidebarLink href="/" icon={LayoutDashboard} label={t("sidebar.dashboard")} active={pathname === "/"} />
+        <SidebarLink
+          href="/feature-requests"
+          icon={Lightbulb}
+          label={t("sidebar.feature_requests")}
+          active={pathname.startsWith("/feature-requests")}
+        />
 
         <p className="mt-6 px-3 text-xs font-medium uppercase tracking-wider text-ink-muted">
           {t("sidebar.categories")}
@@ -72,20 +99,34 @@ export function Sidebar() {
           {t("sidebar.admin")}
         </p>
         <ul className="mt-2 space-y-0.5">
-          <li>
-            <SidebarLink href="/settings/users" icon={Users} label={t("sidebar.users")} active={pathname === "/settings/users"} />
-          </li>
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/users" icon={Users} label={t("sidebar.users")} active={pathname === "/settings/users"} />
+            </li>
+          )}
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/audit-log" icon={ScrollText} label="Audit-Log" active={pathname === "/settings/audit-log"} />
+            </li>
+          )}
+          {(isAdmin || canInvite) && (
+            <li>
+              <SidebarLink href="/settings/invites" icon={UserPlus} label={t("sidebar.invites")} active={pathname === "/settings/invites"} />
+            </li>
+          )}
           <li>
             <SidebarLink href="/settings/security" icon={Lock} label={t("sidebar.security")} active={pathname === "/settings/security"} />
           </li>
-          <li>
-            <SidebarLink
-              href="/settings/appearance"
-              icon={Palette}
-              label={t("sidebar.appearance")}
-              active={pathname === "/settings/appearance"}
-            />
-          </li>
+          {isAdmin && (
+            <li>
+              <SidebarLink
+                href="/settings/appearance"
+                icon={Palette}
+                label={t("sidebar.appearance")}
+                active={pathname === "/settings/appearance"}
+              />
+            </li>
+          )}
         </ul>
       </nav>
 

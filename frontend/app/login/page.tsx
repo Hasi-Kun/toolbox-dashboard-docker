@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { KeyRound, Loader2, Radar, ShieldCheck, Smartphone } from "lucide-react";
 import { authenticateWithPasskey, isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/animated-background";
@@ -40,12 +41,16 @@ export default function LoginPage() {
     animation_speed: number;
     gradient_color: string;
     interactive_dots: boolean;
+    form_opacity_percent: number;
+    form_blur_px: number;
   }>({
     background_style: "dots",
     custom_background_url: null,
     animation_speed: 1,
     gradient_color: "#35E0C0",
     interactive_dots: true,
+    form_opacity_percent: 90,
+    form_blur_px: 4,
   });
 
   useEffect(() => {
@@ -172,7 +177,13 @@ export default function LoginPage() {
         <Languages className="h-3.5 w-3.5" />
         {language}
       </button>
-      <div className="relative w-full max-w-sm rounded-xl border border-base-border bg-base-elevated/90 p-6 shadow-card backdrop-blur-sm">
+      <div
+        className="relative w-full max-w-sm rounded-xl border border-base-border p-6 shadow-card"
+        style={{
+          backgroundColor: `rgba(17, 26, 46, ${appearance.form_opacity_percent / 100})`,
+          backdropFilter: appearance.form_blur_px > 0 ? `blur(${appearance.form_blur_px}px)` : undefined,
+        }}
+      >
         <div className="mb-6 flex items-center gap-2">
           <Radar className="h-5 w-5 text-signal" strokeWidth={2.5} />
           <span className="font-display text-lg text-ink">toolbox</span>
@@ -206,6 +217,15 @@ export default function LoginPage() {
             </Field>
             <SubmitButton loading={loading}>{t("login.continue")}</SubmitButton>
           </form>
+        )}
+
+        {step.name === "password" && (
+          <p className="mt-4 text-center text-xs text-ink-muted">
+            Einladungscode erhalten?{" "}
+            <Link href="/register" className="text-signal hover:underline">
+              Registrieren
+            </Link>
+          </p>
         )}
 
         {step.name === "choose_2fa" && step.methods.length === 0 && (

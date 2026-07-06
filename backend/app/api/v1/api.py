@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import account, appearance, auth, health, system, tools, users
+from app.api.v1.endpoints import account, appearance, auth, chat, feature_requests, health, openssl_tool, system, tools, users
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -9,6 +9,9 @@ api_router.include_router(account.router, prefix="/auth", tags=["account"])
 api_router.include_router(appearance.router, tags=["appearance"])
 api_router.include_router(users.router, tags=["users"])
 api_router.include_router(system.router)
+api_router.include_router(chat.router)
+api_router.include_router(feature_requests.router)
+api_router.include_router(openssl_tool.router)
 api_router.include_router(tools.router)
 
 # Zukuenftige Kategorien werden hier eingehaengt, z.B.:

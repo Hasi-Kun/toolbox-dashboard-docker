@@ -11,13 +11,13 @@ const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://toolbox-backend:
  *
  * Damit bleibt das Backend intern (nur im toolbox-internal-Netzwerk
  * erreichbar), aber das Session-Cookie funktioniert trotzdem same-origin
- * unter toolbox.domain.cc, weil der Browser nur je mit dem Frontend
+ * unter {{TOOLBOX_DOMAIN}}, weil der Browser nur je mit dem Frontend
  * spricht.
  */
 export async function proxyToBackend(
   request: NextRequest,
   backendPath: string,
-  init?: { method?: string }
+  init?: { method?: string; passThroughHeaders?: boolean }
 ): Promise<NextResponse> {
   const method = init?.method ?? request.method;
   const cookie = request.headers.get("cookie") ?? "";
@@ -44,6 +44,24 @@ export async function proxyToBackend(
     });
   } catch {
     return NextResponse.json({ detail: "Backend nicht erreichbar" }, { status: 502 });
+  }
+
+  // Fuer Datei-Downloads (z.B. CSV-Export): echten Content-Type/
+  // Content-Disposition durchreichen statt pauschal JSON anzunehmen.
+  if (init?.passThroughHeaders) {
+    const data = await backendResponse.arrayBuffer();
+    const response = new NextResponse(data, {
+      status: backendResponse.status,
+      headers: {
+        "Content-Type": backendResponse.headers.get("content-type") ?? "application/octet-stream",
+        "Content-Disposition": backendResponse.headers.get("content-disposition") ?? "",
+      },
+    });
+    const setCookieHeaders = backendResponse.headers.getSetCookie?.() ?? [];
+    for (const value of setCookieHeaders) {
+      response.headers.append("Set-Cookie", value);
+    }
+    return response;
   }
 
   const data = await backendResponse.text();

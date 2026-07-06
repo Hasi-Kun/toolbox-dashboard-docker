@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
+import type { TranslationKey } from "@/lib/i18n";
 
-type Execution = { tool_slug: string; success: boolean; ran_at: string };
+type Execution = { id: number; tool_slug: string; success: boolean; ran_at: string };
 type Tool = { slug: string; name: string };
 
 function timeAgo(isoString: string): string {
@@ -36,7 +37,8 @@ export function RecentScansWidget() {
   }, []);
 
   function toolName(slug: string): string {
-    return tools.find((t) => t.slug === slug)?.name ?? slug;
+    const translated = t(`tools.${slug}.name` as TranslationKey);
+    return translated !== `tools.${slug}.name` ? translated : tools.find((tool) => tool.slug === slug)?.name ?? slug;
   }
 
   return (
@@ -56,7 +58,7 @@ export function RecentScansWidget() {
           {executions.map((exec, i) => (
             <li key={i}>
               <Link
-                href={`/tools/${exec.tool_slug}`}
+                href={`/history/${exec.id}`}
                 className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-base-border/40"
               >
                 <span className="flex items-center gap-2 text-ink">

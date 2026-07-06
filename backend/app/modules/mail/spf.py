@@ -18,7 +18,10 @@ class SpfCheckModule(ToolModule):
     slug = "spf-check"
     category = "mail"
     name = "SPF Analyse"
-    description = "Prueft und zerlegt den SPF-Record einer Domain in seine Mechanismen."
+    description = (
+        "Prueft und zerlegt den SPF-Record einer Domain (oder Subdomain) in seine Mechanismen, "
+        "inkl. Bewertung des abschliessenden 'all'-Mechanismus (Catch-All-Sicherheit)."
+    )
     is_active_scan = False
     timeout_seconds = 5
 
@@ -39,6 +42,8 @@ class SpfCheckModule(ToolModule):
         raw_record: str | None
         mechanisms: list[SpfMechanism]
         lookup_count: int
+        catch_all_qualifier: str | None = None
+        catch_all_severity: str | None = None
         warnings: list[str]
         error: str | None
 
@@ -78,15 +83,32 @@ class SpfCheckModule(ToolModule):
                 "Manche Empfaenger lehnen die Pruefung als PermError ab."
             )
 
+        catch_all_qualifier: str | None = None
+        catch_all_severity: str | None = None
+
         if not any(m.mechanism == "all" for m in mechanisms):
             warnings.append(
                 "Kein 'all'-Mechanismus am Ende -- Verhalten fuer nicht gelistete "
                 "Server ist undefiniert."
             )
+        else:
+            all_mechanism = next(m for m in mechanisms if m.mechanism == "all")
+            catch_all_qualifier = f"{all_mechanism.qualifier}all"
+            catch_all_severity_map = {
+                "-": ("sicher", "Hard Fail -- nicht gelistete Server werden abgelehnt (empfohlen)."),
+                "~": ("mittel", "Soft Fail -- nicht gelistete Server werden markiert, aber meist trotzdem angenommen."),
+                "?": ("schwach", "Neutral -- nicht gelistete Server werden weder erlaubt noch abgelehnt (kaum Schutzwirkung)."),
+                "+": ("unsicher", "Pass -- JEDER Server darf im Namen der Domain Mail senden. Das hebelt SPF praktisch aus!"),
+            }
+            severity, explanation = catch_all_severity_map.get(all_mechanism.qualifier, ("unbekannt", "Unbekannter Qualifier."))
+            catch_all_severity = severity
+            if all_mechanism.qualifier in ("+", "?"):
+                warnings.append(f"Catch-All-Sicherheit: {severity} ('{catch_all_qualifier}') -- {explanation}")
 
         return self.Output(
             domain=data.domain, found=True, raw_record=raw,
             mechanisms=mechanisms, lookup_count=lookup_count,
+            catch_all_qualifier=catch_all_qualifier, catch_all_severity=catch_all_severity,
             warnings=warnings, error=None,
         )
 

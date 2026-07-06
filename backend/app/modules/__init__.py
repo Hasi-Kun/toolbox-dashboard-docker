@@ -18,3 +18,4 @@ from app.modules import nmap  # noqa: F401  (Registrierung per Import-Seiteneffe
 from app.modules import utilities  # noqa: F401  (Registrierung per Import-Seiteneffekt)
 from app.modules import certificates  # noqa: F401  (Registrierung per Import-Seiteneffekt)
 from app.modules import website  # noqa: F401  (Registrierung per Import-Seiteneffekt)
+from app.modules import osint  # noqa: F401  (Registrierung per Import-Seiteneffekt)

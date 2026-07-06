@@ -20,6 +20,8 @@ class AppearanceOut(BaseModel):
     animation_speed: float
     gradient_color: str
     interactive_dots: bool
+    form_opacity_percent: int
+    form_blur_px: int
 
     model_config = {"from_attributes": True}
 
@@ -30,6 +32,8 @@ class UpdateAppearanceRequest(BaseModel):
     animation_speed: float = 1.0
     gradient_color: str = "#35E0C0"
     interactive_dots: bool = True
+    form_opacity_percent: int = 90
+    form_blur_px: int = 4
 
     @field_validator("background_style")
     @classmethod
@@ -65,6 +69,16 @@ class UpdateAppearanceRequest(BaseModel):
             raise ValueError("Farbe muss ein Hex-Code sein, z.B. #35E0C0")
         return v
 
+    @field_validator("form_opacity_percent")
+    @classmethod
+    def validate_opacity(cls, v: int) -> int:
+        return max(0, min(v, 100))
+
+    @field_validator("form_blur_px")
+    @classmethod
+    def validate_blur(cls, v: int) -> int:
+        return max(0, min(v, 20))
+
 
 def _get_or_create(db: Session) -> AppearanceSettings:
     settings = db.get(AppearanceSettings, 1)
@@ -96,6 +110,8 @@ async def update_appearance(
     settings.animation_speed = payload.animation_speed
     settings.gradient_color = payload.gradient_color
     settings.interactive_dots = payload.interactive_dots
+    settings.form_opacity_percent = payload.form_opacity_percent
+    settings.form_blur_px = payload.form_blur_px
     db.add(settings)
     db.commit()
     db.refresh(settings)

@@ -105,23 +105,55 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
 
     return (
       <dl className={depth === 0 ? "space-y-2.5" : "space-y-1.5"}>
-        {entries.map(([key, val]) => (
-          <div
-            key={key}
-            className={
-              depth === 0
-                ? "grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-b border-base-border pb-2"
-                : "grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1"
-            }
-          >
-            <dt className="whitespace-nowrap text-xs font-medium uppercase tracking-wide text-ink-muted">
-              {humanizeKey(key)}
-            </dt>
-            <dd className="min-w-0">
-              <ValueRenderer value={val} depth={depth + 1} />
-            </dd>
-          </div>
-        ))}
+        {entries.map(([key, val]) => {
+          if (key === "map_embed_url" && typeof val === "string") {
+            return (
+              <div key={key} className="pt-1">
+                <iframe
+                  src={val}
+                  className="h-64 w-full rounded-lg border border-base-border"
+                  loading="lazy"
+                  title="Standort-Karte"
+                />
+              </div>
+            );
+          }
+          if (key === "transcript" && Array.isArray(val)) {
+            return (
+              <div key={key} className="pt-1">
+                <pre className="max-h-96 overflow-y-auto rounded-lg border border-base-border bg-base p-3 font-mono text-xs leading-relaxed text-ink">
+                  {(val as string[]).map((line, i) => (
+                    <div
+                      key={i}
+                      className={
+                        line.startsWith(">") ? "text-signal" : line.startsWith("[") ? "text-warn" : "text-ink"
+                      }
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </pre>
+              </div>
+            );
+          }
+          return (
+            <div
+              key={key}
+              className={
+                depth === 0
+                  ? "grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-b border-base-border pb-2"
+                  : "grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1"
+              }
+            >
+              <dt className="whitespace-nowrap text-xs font-medium uppercase tracking-wide text-ink-muted">
+                {humanizeKey(key)}
+              </dt>
+              <dd className="min-w-0">
+                <ValueRenderer value={val} depth={depth + 1} />
+              </dd>
+            </div>
+          );
+        })}
       </dl>
     );
   }

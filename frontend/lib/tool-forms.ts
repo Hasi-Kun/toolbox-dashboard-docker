@@ -1,4 +1,4 @@
-export type FieldType = "text" | "number" | "checkbox" | "select" | "int-list" | "textarea" | "checkbox-group";
+export type FieldType = "text" | "number" | "checkbox" | "select" | "int-list" | "string-list" | "textarea" | "checkbox-group" | "header-list";
 
 export interface FieldOption {
   value: string;
@@ -144,4 +144,55 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
 
   // --- Security (Ergaenzung) ---
   "vulnerability-indicators": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  // --- Mail (Ergaenzung) ---
+  "dane-check": [
+    { name: "domain", label: "Domain", type: "text", placeholder: "example.com" },
+    { name: "port", label: "Port", type: "number", default: 25 },
+  ],
+  "smtp-tls-check": [
+    { name: "host", label: "Mailserver-Host", type: "text", placeholder: "mail.example.com" },
+    { name: "port", label: "Port", type: "select", options: [{ value: "25", label: "25 (SMTP)" }, { value: "587", label: "587 (Submission)" }, { value: "465", label: "465 (SMTPS)" }], default: "25" },
+  ],
+  "blacklist-check": [{ name: "target", label: "Domain oder IP", type: "text", placeholder: "example.com" }],
+  "ghost-sender-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "dkim-signature-inspector": [
+    {
+      name: "dkim_signature_header",
+      label: "DKIM-Signature Kopfzeile (aus dem E-Mail-Header kopiert)",
+      type: "textarea",
+      placeholder: "v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=selector1; h=from:to:subject; bh=...; b=...",
+    },
+  ],
+  "smtp-debug": [
+    { name: "host", label: "Mailserver-Host", type: "text", placeholder: "mail.example.com" },
+    { name: "port", label: "Port", type: "select", options: [{ value: "25", label: "25 (SMTP)" }, { value: "587", label: "587 (Submission)" }, { value: "465", label: "465 (SMTPS)" }], default: "25" },
+    { name: "use_starttls", label: "STARTTLS versuchen", type: "checkbox", default: true },
+    { name: "mail_from", label: "Absender (MAIL FROM)", type: "text", placeholder: "test@example.com" },
+    { name: "rcpt_to", label: "Empfaenger (RCPT TO, kommagetrennt, max. 5)", type: "string-list", placeholder: "ziel@example.com" },
+    { name: "subject", label: "Betreff", type: "text", default: "Toolbox SMTP Debug Test" },
+    { name: "custom_headers", label: "Zusaetzliche Header (eine 'Name: Wert'-Zeile pro Header)", type: "header-list", placeholder: "Reply-To: antwort@example.com\nX-Priority: 1" },
+    { name: "body", label: "Nachrichtentext", type: "textarea" },
+    { name: "send_data", label: "Nachricht wirklich senden (sonst nur Verbindungs-/Relay-Test)", type: "checkbox", default: false },
+  ],
+
+  // --- Certificates (Ergaenzung) ---
+  "ocsp-check": [
+    { name: "host", label: "Host", type: "text", placeholder: "example.com" },
+    { name: "port", label: "Port", type: "number", default: 443 },
+  ],
+
+  // --- Website-Analyse (Ergaenzung) ---
+  "broken-links-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "sitemap-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+
+  // --- Utilities (Ergaenzung) ---
+  "ip-geolocation": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
+  "hash-identifier": [{ name: "hash_value", label: "Hash", type: "text", placeholder: "5d41402abc4b2a76b9719d911017c592" }],
+  // --- Utilities (Ergaenzung) ---
+  "fastviewer-status": [],
+
+  // --- OSINT ---
+  "subdomain-bruteforce": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
+  "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 };

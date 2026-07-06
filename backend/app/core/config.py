@@ -40,9 +40,9 @@ class Settings(BaseSettings):
 
     # WebAuthn / Passkeys -- muss zur oeffentlichen Domain passen, sonst
     # schlaegt die Browser-Verifikation fehl.
-    webauthn_rp_id: str = "toolbox.domain.cc"
+    webauthn_rp_id: str = "{{TOOLBOX_DOMAIN}}"
     webauthn_rp_name: str = "Toolbox"
-    webauthn_origin: str = "https://toolbox.domain.cc"
+    webauthn_origin: str = "https://{{TOOLBOX_DOMAIN}}"
 
     # Read-only Docker-API-Proxy fuer die Dashboard-Container-Uebersicht
     # (siehe docs/ARCHITECTURE.md -- niemals direkter Socket-Zugriff)

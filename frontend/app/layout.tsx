@@ -7,6 +7,7 @@ const display = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-display",
   weight: ["500", "700"],
+  preload: false,
 });
 
 const body = Inter({
@@ -17,6 +18,7 @@ const body = Inter({
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  preload: false,
 });
 
 export const metadata: Metadata = {

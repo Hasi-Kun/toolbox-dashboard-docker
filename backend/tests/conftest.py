@@ -21,6 +21,13 @@ def client():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
+    # WICHTIG: Modelle muessen importiert sein, BEVOR create_all laeuft --
+    # sonst ist Base.metadata leer (keine Tabellen registriert) und
+    # create_all legt still und leise gar nichts an. Das fiel bisher nur
+    # nicht auf, wenn zufaellig schon ein anderer Test vorher die Modelle
+    # importiert hatte (Reihenfolge-Zufall, kein verlaesslicher Fix).
+    from app.models import user as _user_models  # noqa: F401
+
     # WICHTIG: engine/SessionLocal sind Modul-Level-Singletons, die beim
     # ersten Import gebunden werden. Nur die DATABASE_URL-Env-Variable zu
     # aendern reicht NICHT, weil app.core.db beim zweiten Test schon

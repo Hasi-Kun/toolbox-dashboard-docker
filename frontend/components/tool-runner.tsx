@@ -40,6 +40,22 @@ function buildPayload(fields: FieldSpec[], values: Record<string, FormValue>): R
         .filter(Boolean)
         .map((s) => parseInt(s, 10))
         .filter((n) => !Number.isNaN(n));
+    } else if (field.type === "string-list") {
+      const text = String(raw ?? "");
+      payload[field.name] = text
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (field.type === "header-list") {
+      const text = String(raw ?? "");
+      const headers: Record<string, string> = {};
+      for (const line of text.split("\n")) {
+        const [key, ...rest] = line.split(":");
+        if (key && rest.length > 0) {
+          headers[key.trim()] = rest.join(":").trim();
+        }
+      }
+      payload[field.name] = headers;
     } else if (field.type === "number") {
       payload[field.name] = Number(raw);
     } else if (field.name === "version" && field.type === "select") {
@@ -161,6 +177,26 @@ function FormField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
           className="input font-mono"
+        />
+      )}
+
+      {field.type === "string-list" && (
+        <input
+          type="text"
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          className="input font-mono"
+        />
+      )}
+
+      {field.type === "header-list" && (
+        <textarea
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          rows={3}
+          className="input font-mono text-sm"
         />
       )}
 

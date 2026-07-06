@@ -49,6 +49,11 @@ class ToolModule(ABC):
     # Pro-Modul Timeout-Override; None = Settings-Default verwenden
     timeout_seconds: ClassVar[int | None] = None
 
+    # Manche Module (z.B. SMTP-Debug, das echte Mails verschicken kann)
+    # sind bewusst nur fuer Admins freigeschaltet, nicht fuer alle
+    # eingeloggten Member. Default: fuer alle nutzbar.
+    requires_admin: ClassVar[bool] = False
+
     class Input(BaseModel):
         pass
 
@@ -68,6 +73,7 @@ class ToolModule(ABC):
             "name": cls.name,
             "description": cls.description,
             "is_active_scan": cls.is_active_scan,
+            "requires_admin": cls.requires_admin,
         }
 
 

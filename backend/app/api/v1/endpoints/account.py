@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
@@ -260,9 +262,20 @@ async def remove_favorite(
 # --- Verlauf ("Letzte Scans") -----------------------------------------
 
 class ExecutionOut(BaseModel):
+    id: int
     tool_slug: str
     success: bool
     ran_at: str
+
+
+class ExecutionDetailOut(BaseModel):
+    id: int
+    tool_slug: str
+    success: bool
+    ran_at: str
+    input: dict | None
+    output: dict | None
+    error_message: str | None
 
 
 @router.get("/me/history", response_model=list[ExecutionOut])
@@ -278,6 +291,29 @@ async def get_history(
         .all()
     )
     return [
-        ExecutionOut(tool_slug=e.tool_slug, success=e.success, ran_at=e.ran_at.isoformat())
+        ExecutionOut(id=e.id, tool_slug=e.tool_slug, success=e.success, ran_at=e.ran_at.isoformat())
         for e in executions
     ]
+
+
+@router.get("/me/history/{execution_id}", response_model=ExecutionDetailOut)
+async def get_history_detail(
+    execution_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> ExecutionDetailOut:
+    execution = (
+        db.query(ToolExecution)
+        .filter(ToolExecution.id == execution_id, ToolExecution.user_id == user.id)
+        .first()
+    )
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
+
+    return ExecutionDetailOut(
+        id=execution.id,
+        tool_slug=execution.tool_slug,
+        success=execution.success,
+        ran_at=execution.ran_at.isoformat(),
+        input=json.loads(execution.input_json) if execution.input_json else None,
+        output=json.loads(execution.output_json) if execution.output_json else None,
+        error_message=execution.error_message,
+    )

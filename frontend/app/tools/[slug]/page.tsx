@@ -8,6 +8,8 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { ToolRunner } from "@/components/tool-runner";
 import { TOOL_FORMS } from "@/lib/tool-forms";
+import { useLanguage } from "@/components/language-provider";
+import type { TranslationKey } from "@/lib/i18n";
 
 type ToolMeta = {
   slug: string;
@@ -19,6 +21,7 @@ type ToolMeta = {
 
 export default function ToolPage() {
   const params = useParams<{ slug: string }>();
+  const { t } = useLanguage();
   const [tool, setTool] = useState<ToolMeta | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -78,7 +81,7 @@ export default function ToolPage() {
           {tool && (
             <>
               <div className="flex items-center justify-between">
-                <h1 className="font-display text-2xl text-ink">{tool.name}</h1>
+                <h1 className="font-display text-2xl text-ink">{t(`tools.${tool.slug}.name` as TranslationKey)}</h1>
                 <div className="flex items-center gap-2">
                   {tool.is_active_scan && (
                     <span className="flex items-center gap-1 rounded-full bg-warn/10 px-2 py-1 text-xs text-warn">
@@ -95,7 +98,7 @@ export default function ToolPage() {
                   </button>
                 </div>
               </div>
-              <p className="mt-1 text-sm text-ink-muted">{tool.description}</p>
+              <p className="mt-1 text-sm text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
 
               <div className="mt-6">
                 {fields ? (

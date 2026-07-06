@@ -7,6 +7,8 @@ import { StatusCard } from "@/components/widgets/status-card";
 import { SystemWidgets } from "@/components/widgets/system-widgets";
 import { RecentScansWidget } from "@/components/widgets/recent-scans-widget";
 import { FavoritesWidget } from "@/components/widgets/favorites-widget";
+import { OnlineUsersWidget } from "@/components/widgets/online-users-widget";
+import { ShoutboxWidget } from "@/components/widgets/shoutbox-widget";
 import { categories } from "@/lib/categories";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
@@ -25,14 +27,16 @@ export default function DashboardPage() {
           <h1 className="font-display text-2xl text-ink">{t("dashboard.title")}</h1>
           <p className="mt-1 text-sm text-ink-muted">{t("dashboard.subtitle")}</p>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <StatusCard status="online" label={t("dashboard.server_status")} />
             <SystemWidgets />
+            <OnlineUsersWidget />
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <RecentScansWidget />
             <FavoritesWidget />
+            <ShoutboxWidget />
           </div>
 
           <h2 className="mt-8 font-display text-lg text-ink">{t("dashboard.categories")}</h2>

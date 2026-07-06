@@ -79,6 +79,22 @@ async def delete_pending(pending_id: str) -> None:
     await _redis.delete(f"pending:{pending_id}")
 
 
+async def get_online_user_ids() -> set[int]:
+    """Ermittelt die eindeutigen User-IDs mit einer aktiven (nicht abgelaufenen)
+    Session -- 'online' ist hier definiert als 'hat gerade eine gueltige Session',
+    nicht als 'aktiv im Browser gerade jetzt' (kein Heartbeat/WebSocket).
+    """
+    user_ids: set[int] = set()
+    async for key in _redis.scan_iter(match="session:*"):
+        raw = await _redis.get(key)
+        if raw:
+            try:
+                user_ids.add(json.loads(raw)["user_id"])
+            except (KeyError, ValueError):
+                continue
+    return user_ids
+
+
 # --- Transiente Werte fuer selbstbedienten 2FA-Setup (User ist bereits
 # eingeloggt, daher an die user_id statt an einen pending_token gebunden) ---
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -34,6 +34,17 @@ class User(Base):
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    # Invite-Recht fuer normale Member (Admin-vergeben) -- Grundlage fuer
+    # das erweiterte Invite-System: ein Member mit can_invite=True darf
+    # selbst Einladungscodes erzeugen (immer nur Rolle 'member', nie
+    # 'admin') und sieht, wer sich damit registriert hat.
+    can_invite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+
+    # Premium/VIP-Fundament (noch ohne Feature-Gating -- reine Kennzeichnung
+    # + Badge-Darstellung, echte Premium-only-Tools folgen spaeter).
+    is_premium: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+    premium_badge_color: Mapped[str] = mapped_column(String(9), default="#F5C518", server_default=text("'#F5C518'"), nullable=False)
 
     webauthn_credentials: Mapped[list["WebAuthnCredential"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -75,6 +86,15 @@ class AppearanceSettings(Base):
     animation_speed: Mapped[float] = mapped_column(default=1.0, nullable=False)
     gradient_color: Mapped[str] = mapped_column(String(9), default="#35E0C0", nullable=False)
     interactive_dots: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Login-Formular: Transparenz (0=undurchsichtig, 100=komplett transparent) + Weichzeichnung in px
+    form_opacity_percent: Mapped[int] = mapped_column(Integer, default=90, server_default=text("90"), nullable=False)
+    form_blur_px: Mapped[int] = mapped_column(Integer, default=4, server_default=text("4"), nullable=False)
+    # Nullable, KEIN server_default noetig (bewusst so gewaehlt -- ein
+    # nullable Feld laesst sich per ALTER TABLE ADD COLUMN IMMER sicher
+    # hinzufuegen, auch auf Tabellen mit bestehenden Zeilen. Siehe
+    # docs/ARCHITECTURE.md fuer die Lehre aus einem frueheren Incident mit
+    # NOT-NULL-Spalten ohne server_default).
+    chat_last_cleared_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
 class Favorite(Base):
@@ -94,9 +114,9 @@ class Favorite(Base):
 
 class ToolExecution(Base):
     """Protokolliert jede Tool-Ausfuehrung fuer die 'Letzte Scans'-Anzeige
-    im Dashboard. Bewusst schlank (kein vollstaendiges Audit-Log mit
-    Ein-/Ausgabe-Daten -- das waere ein eigenes Thema, siehe
-    docs/ARCHITECTURE.md fuer geplante Erweiterungen).
+    im Dashboard -- inklusive Ein-/Ausgabe, damit ein Klick auf einen
+    vergangenen Lauf das damalige Ergebnis zeigt (nicht nur, DASS er
+    stattfand).
     """
 
     __tablename__ = "tool_executions"
@@ -106,3 +126,107 @@ class ToolExecution(Base):
     tool_slug: Mapped[str] = mapped_column(String(64), nullable=False)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     ran_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    input_json: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    output_json: Mapped[str | None] = mapped_column(String(20000), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class InviteCode(Base):
+    """Einladungscode fuer die Selbstregistrierung. Erstellt von einem Admin,
+    einmalig einlösbar. Damit bleibt die Registrierung geschlossen (kein
+    offenes Signup-Formular fuer jeden), aber ein Admin kann gezielt
+    Zugang gewaehren, ohne selbst ein Konto anlegen zu muessen.
+    """
+
+    __tablename__ = "invite_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), default=UserRole.MEMBER.value, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    used_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ChatMessage(Base):
+    """Nachricht in der globalen Shoutbox. Username wird denormalisiert
+    gespeichert (nicht nur user_id), damit Nachrichten lesbar bleiben,
+    falls ein Account spaeter geloescht wird.
+    """
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+
+
+class FeatureRequestStatus(str, enum.Enum):
+    OPEN = "open"
+    PLANNED = "planned"
+    DONE = "done"
+    REJECTED = "rejected"
+
+
+class FeatureRequest(Base):
+    __tablename__ = "feature_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str] = mapped_column(String(3000), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default=FeatureRequestStatus.OPEN.value, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+
+    votes: Mapped[list["FeatureRequestVote"]] = relationship(back_populates="request", cascade="all, delete-orphan")
+    comments: Mapped[list["FeatureRequestComment"]] = relationship(back_populates="request", cascade="all, delete-orphan")
+
+
+class FeatureRequestVote(Base):
+    __tablename__ = "feature_request_votes"
+    __table_args__ = (UniqueConstraint("request_id", "user_id", name="uq_vote_request_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("feature_requests.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    request: Mapped["FeatureRequest"] = relationship(back_populates="votes")
+
+
+class FeatureRequestComment(Base):
+    __tablename__ = "feature_request_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("feature_requests.id"), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    comment: Mapped[str] = mapped_column(String(1000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    request: Mapped["FeatureRequest"] = relationship(back_populates="comments")
+
+
+class AuditLogEntry(Base):
+    """Sicherheitsrelevante Ereignisse fuer Admins: Login-Versuche
+    (erfolgreich/fehlgeschlagen), 2FA-Fehlschlaege, Admin-Aktionen
+    (Benutzer angelegt/geloescht, Invite erstellt, etc). Bewusst getrennt
+    von ToolExecution (das ist Tool-Nutzung, hier geht es um Auth/Verwaltung).
+    """
+
+    __tablename__ = "audit_log_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)

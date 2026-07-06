@@ -5,6 +5,7 @@ import { Loader2, Save } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/animated-background";
+import { useIsAdmin, AdminOnlyNotice } from "@/components/use-is-admin";
 
 const STYLE_OPTIONS: { value: BackgroundStyle; label: string; description: string }[] = [
   { value: "none", label: "Kein Hintergrund", description: "Einfarbig, ohne Effekt." },
@@ -15,11 +16,14 @@ const STYLE_OPTIONS: { value: BackgroundStyle; label: string; description: strin
 ];
 
 export default function AppearanceSettingsPage() {
+  const { isAdmin, loaded: adminLoaded } = useIsAdmin();
   const [style, setStyle] = useState<BackgroundStyle>("dots");
   const [customUrl, setCustomUrl] = useState("");
   const [speed, setSpeed] = useState(1);
   const [gradientColor, setGradientColor] = useState("#35E0C0");
   const [interactiveDots, setInteractiveDots] = useState(true);
+  const [formOpacity, setFormOpacity] = useState(90);
+  const [formBlur, setFormBlur] = useState(4);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -34,6 +38,8 @@ export default function AppearanceSettingsPage() {
         setSpeed(data.animation_speed ?? 1);
         setGradientColor(data.gradient_color ?? "#35E0C0");
         setInteractiveDots(data.interactive_dots ?? true);
+        setFormOpacity(data.form_opacity_percent ?? 90);
+        setFormBlur(data.form_blur_px ?? 4);
       })
       .catch(() => setError("Einstellungen konnten nicht geladen werden."))
       .finally(() => setLoaded(true));
@@ -54,6 +60,8 @@ export default function AppearanceSettingsPage() {
           animation_speed: speed,
           gradient_color: gradientColor,
           interactive_dots: interactiveDots,
+          form_opacity_percent: formOpacity,
+          form_blur_px: formBlur,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -77,6 +85,11 @@ export default function AppearanceSettingsPage() {
             Hintergrund der Login-Seite -- gilt fuer die gesamte Instanz (alle Benutzer sehen denselben
             Hintergrund, solange sie nicht eingeloggt sind).
           </p>
+
+          {adminLoaded && !isAdmin && <AdminOnlyNotice />}
+
+          {isAdmin && (
+            <>
 
           {error && (
             <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
@@ -179,6 +192,41 @@ export default function AppearanceSettingsPage() {
                 </label>
               )}
 
+              <div className="border-t border-base-border pt-4">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Login-Formular</p>
+
+                <label className="block">
+                  <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
+                    <span>Transparenz</span>
+                    <span className="font-mono text-signal">{formOpacity}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={formOpacity}
+                    onChange={(e) => setFormOpacity(Number(e.target.value))}
+                    className="w-full accent-signal"
+                  />
+                  <span className="text-xs text-ink-muted">0% = komplett transparent, 100% = undurchsichtig</span>
+                </label>
+
+                <label className="mt-3 block">
+                  <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
+                    <span>Weichzeichnung (Blur)</span>
+                    <span className="font-mono text-signal">{formBlur}px</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    value={formBlur}
+                    onChange={(e) => setFormBlur(Number(e.target.value))}
+                    className="w-full accent-signal"
+                  />
+                </label>
+              </div>
+
               <button type="submit" disabled={saving} className="submit-button w-auto px-4">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Speichern
@@ -199,6 +247,8 @@ export default function AppearanceSettingsPage() {
               contained
             />
           </div>
+            </>
+          )}
         </main>
       </div>
     </div>

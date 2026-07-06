@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Languages, LogOut, Search, Star, X } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
+import type { TranslationKey } from "@/lib/i18n";
+import { PremiumBadge } from "@/components/premium-badge";
+import { WebCliManager } from "@/components/webcli/webcli-manager";
 
-type Me = { id: number; username: string; role: string; has_2fa: boolean };
+type Me = { id: number; username: string; role: string; has_2fa: boolean; is_premium: boolean; premium_badge_color: string };
 type Tool = { slug: string; name: string; description: string; category: string };
 type Favorite = { tool_slug: string };
 
@@ -127,8 +130,8 @@ export function Topbar() {
                 onClick={() => goToTool(tool.slug)}
                 className="block w-full border-b border-base-border/60 px-3 py-2 text-left last:border-0 hover:bg-base-border/40"
               >
-                <p className="text-sm text-ink">{tool.name}</p>
-                <p className="truncate text-xs text-ink-muted">{tool.description}</p>
+                <p className="text-sm text-ink">{t(`tools.${tool.slug}.name` as TranslationKey)}</p>
+                <p className="truncate text-xs text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
               </button>
             ))}
           </div>
@@ -141,6 +144,7 @@ export function Topbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        <WebCliManager />
         <button
           type="button"
           onClick={() => setLanguage(language === "de" ? "en" : "de")}
@@ -178,7 +182,7 @@ export function Topbar() {
                       onClick={() => setFavoritesOpen(false)}
                       className="text-sm text-ink hover:text-signal"
                     >
-                      {tool.name}
+                      {t(`tools.${tool.slug}.name` as TranslationKey)}
                     </Link>
                     <button
                       type="button"
@@ -197,8 +201,9 @@ export function Topbar() {
 
         {me && (
           <div className="flex items-center gap-3 border-l border-base-border pl-3">
-            <span className="text-sm text-ink-muted">
+            <span className="flex items-center gap-1.5 text-sm text-ink-muted">
               {me.username} <span className="text-xs">({me.role})</span>
+              {me.is_premium && <PremiumBadge color={me.premium_badge_color} />}
             </span>
             <button
               type="button"

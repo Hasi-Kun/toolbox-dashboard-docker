@@ -48,7 +48,7 @@ function RadarIndicator({ status }: { status: Status }) {
       {status !== "offline" && (
         <g className="radar-sweep" style={{ transformOrigin: "50% 50%", transformBox: "view-box" }}>
           <path
-            d="M50 50 L50 4 A46 46 0 0 1 88 27 Z"
+            d="M50 50 L50 4 A46 46 0 0 0 12 27 Z"
             fill={ringColor}
             opacity="0.15"
           />
