@@ -6,10 +6,13 @@ import Link from "next/link";
 import { Languages, LogOut, Search, Star, X } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
-import { PremiumBadge } from "@/components/premium-badge";
+import { StyledUsername } from "@/components/styled-username";
 import { WebCliManager } from "@/components/webcli/webcli-manager";
 
-type Me = { id: number; username: string; role: string; has_2fa: boolean; is_premium: boolean; premium_badge_color: string };
+type Me = {
+  id: number; username: string; role: string; has_2fa: boolean; is_premium: boolean; premium_badge_color: string;
+  display_name_style: string; display_name_color: string; display_name_gradient_color: string;
+};
 type Tool = { slug: string; name: string; description: string; category: string };
 type Favorite = { tool_slug: string };
 
@@ -202,8 +205,15 @@ export function Topbar() {
         {me && (
           <div className="flex items-center gap-3 border-l border-base-border pl-3">
             <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-              {me.username} <span className="text-xs">({me.role})</span>
-              {me.is_premium && <PremiumBadge color={me.premium_badge_color} />}
+              <StyledUsername
+                username={me.username}
+                role={me.role}
+                isPremium={me.is_premium}
+                displayNameStyle={me.display_name_style}
+                displayNameColor={me.display_name_color}
+                displayNameGradientColor={me.display_name_gradient_color}
+                premiumBadgeColor={me.premium_badge_color}
+              />
             </span>
             <button
               type="button"

@@ -9,6 +9,7 @@ darf sich aussuchen, welche openssl-Flags laufen".
 """
 
 import asyncio
+import base64
 import logging
 import tempfile
 from pathlib import Path
@@ -22,6 +23,7 @@ logger = logging.getLogger("toolbox.openssl_tool")
 router = APIRouter(prefix="/openssl-inspect", tags=["openssl-inspect"])
 
 MAX_FILE_SIZE_BYTES = 1_000_000
+MAX_TEXT_CHARS = 1_400_000  # Base64 ist ~33% groesser als die Rohdaten -- grosszuegig genug fuer 1MB Rohdaten
 MAX_OUTPUT_CHARS = 20_000
 
 _COMMANDS: dict[str, list[list[str]]] = {
@@ -60,18 +62,42 @@ def _run_openssl_sync(mode: str, file_path: str, timeout: float) -> tuple[bool, 
 
 @router.post("")
 async def inspect_file(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(default=None),
+    text_content: str | None = Form(default=None),
     mode: str = Form(...),
     _user: User = Depends(get_current_user),
 ) -> dict:
     if mode not in _COMMANDS:
         raise HTTPException(status_code=422, detail=f"Ungueltiger Modus, erlaubt: {sorted(_COMMANDS.keys())}")
 
-    content = await file.read(MAX_FILE_SIZE_BYTES + 1)
-    if len(content) > MAX_FILE_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail=f"Datei zu gross (max. {MAX_FILE_SIZE_BYTES // 1000} KB)")
-    if not content:
-        raise HTTPException(status_code=422, detail="Datei ist leer")
+    if file is None and not text_content:
+        raise HTTPException(status_code=422, detail="Entweder eine Datei hochladen oder Text/Base64 einfuegen")
+    if file is not None and text_content:
+        raise HTTPException(status_code=422, detail="Bitte nur EINE Eingabe verwenden: entweder Datei oder Text")
+
+    if text_content is not None:
+        if len(text_content) > MAX_TEXT_CHARS:
+            raise HTTPException(status_code=413, detail="Eingegebener Text ist zu lang")
+        stripped = text_content.strip()
+        if not stripped:
+            raise HTTPException(status_code=422, detail="Eingabe ist leer")
+
+        if "-----BEGIN" in stripped:
+            # Bereits PEM-Text -- so wie eingegeben verwenden.
+            content = stripped.encode("utf-8")
+        else:
+            # Reines Base64 (z.B. copy-paste aus einer .p7s-Datei ohne
+            # PEM-Markierungen) -- dekodieren und als DER behandeln.
+            try:
+                content = base64.b64decode(stripped, validate=True)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=422, detail=f"Eingabe ist weder PEM-Text noch gueltiges Base64: {exc}") from exc
+    else:
+        content = await file.read(MAX_FILE_SIZE_BYTES + 1)
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail=f"Datei zu gross (max. {MAX_FILE_SIZE_BYTES // 1000} KB)")
+        if not content:
+            raise HTTPException(status_code=422, detail="Datei ist leer")
 
     tmp_path: str | None = None
     try:

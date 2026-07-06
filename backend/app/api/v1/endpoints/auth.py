@@ -95,9 +95,12 @@ class MeResponse(BaseModel):
     username: str
     role: str
     has_2fa: bool
-    can_invite: bool
+    invite_quota: int
     is_premium: bool
     premium_badge_color: str
+    display_name_style: str
+    display_name_color: str
+    display_name_gradient_color: str
 
 
 # --- Schritt 1: Passwort -----------------------------------------------------
@@ -353,5 +356,7 @@ async def logout(request: Request, response: Response) -> dict:
 async def me(user: User = Depends(get_current_user)) -> MeResponse:
     return MeResponse(
         id=user.id, username=user.username, role=user.role, has_2fa=user.has_2fa,
-        can_invite=user.can_invite, is_premium=user.is_premium, premium_badge_color=user.premium_badge_color,
+        invite_quota=user.invite_quota, is_premium=user.is_premium, premium_badge_color=user.premium_badge_color,
+        display_name_style=user.display_name_style, display_name_color=user.display_name_color,
+        display_name_gradient_color=user.display_name_gradient_color,
     )

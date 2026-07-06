@@ -17,5 +17,5 @@ export const categories: Category[] = [
   { slug: "website", name: "Website-Analyse", description: "Performance, SEO, Links", toolCount: 5 },
   { slug: "utilities", name: "Netzwerk-Utilities", description: "Rechner, Konverter, Generatoren", toolCount: 10 },
   { slug: "certificates", name: "Zertifikate", description: "SSL-Ketten, Ablauf, OCSP", toolCount: 3 },
-  { slug: "osint", name: "OSINT", description: "Subdomains, ASN, Wayback-Historie", toolCount: 3 },
+  { slug: "osint", name: "OSINT", description: "Subdomains, ASN, Wayback-Historie", toolCount: 5 },
 ];

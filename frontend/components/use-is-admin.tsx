@@ -6,7 +6,7 @@ type Me = {
   id: number;
   username: string;
   role: string;
-  can_invite: boolean;
+  invite_quota: number;
   is_premium: boolean;
   premium_badge_color: string;
 };

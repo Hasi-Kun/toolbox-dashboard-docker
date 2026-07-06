@@ -195,4 +195,6 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "subdomain-bruteforce": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "google-dork-generator": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "tech-fingerprint": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 };

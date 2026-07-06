@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
@@ -18,6 +19,9 @@ from app.modules import get_registry
 
 settings = get_settings()
 router = APIRouter()
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_ALLOWED_DISPLAY_STYLES = {"default", "solid", "gradient", "particles"}
 
 
 # --- Schemas -----------------------------------------------------------
@@ -316,4 +320,65 @@ async def get_history_detail(
         input=json.loads(execution.input_json) if execution.input_json else None,
         output=json.loads(execution.output_json) if execution.output_json else None,
         error_message=execution.error_message,
+    )
+
+
+# --- Anzeigename-Customizing (nur Premium) ---------------------------------
+
+class DisplayStyleOut(BaseModel):
+    display_name_style: str
+    display_name_color: str
+    display_name_gradient_color: str
+
+
+class UpdateDisplayStyleRequest(BaseModel):
+    display_name_style: str
+    display_name_color: str
+    display_name_gradient_color: str
+
+    @field_validator("display_name_style")
+    @classmethod
+    def validate_style(cls, v: str) -> str:
+        if v not in _ALLOWED_DISPLAY_STYLES:
+            raise ValueError(f"Ungueltiger Stil, erlaubt: {sorted(_ALLOWED_DISPLAY_STYLES)}")
+        return v
+
+    @field_validator("display_name_color", "display_name_gradient_color")
+    @classmethod
+    def validate_color(cls, v: str) -> str:
+        if not _HEX_COLOR_RE.match(v):
+            raise ValueError("Farbe muss ein Hex-Code sein, z.B. #35E0C0")
+        return v
+
+
+@router.get("/me/display-style", response_model=DisplayStyleOut)
+async def get_display_style(user: User = Depends(get_current_user)) -> DisplayStyleOut:
+    return DisplayStyleOut(
+        display_name_style=user.display_name_style,
+        display_name_color=user.display_name_color,
+        display_name_gradient_color=user.display_name_gradient_color,
+    )
+
+
+@router.patch("/me/display-style", response_model=DisplayStyleOut)
+async def update_display_style(
+    payload: UpdateDisplayStyleRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> DisplayStyleOut:
+    if not user.is_premium:
+        raise HTTPException(
+            status_code=403,
+            detail="Anzeigename-Customizing ist ein Premium-Feature. Ein Administrator kann dir Premium freischalten.",
+        )
+
+    user.display_name_style = payload.display_name_style
+    user.display_name_color = payload.display_name_color
+    user.display_name_gradient_color = payload.display_name_gradient_color
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return DisplayStyleOut(
+        display_name_style=user.display_name_style,
+        display_name_color=user.display_name_color,
+        display_name_gradient_color=user.display_name_gradient_color,
     )

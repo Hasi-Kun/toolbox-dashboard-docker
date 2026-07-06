@@ -35,16 +35,23 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
-    # Invite-Recht fuer normale Member (Admin-vergeben) -- Grundlage fuer
-    # das erweiterte Invite-System: ein Member mit can_invite=True darf
-    # selbst Einladungscodes erzeugen (immer nur Rolle 'member', nie
-    # 'admin') und sieht, wer sich damit registriert hat.
-    can_invite: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+    # Invite-Kontingent fuer normale Member (Admin-vergeben) -- ersetzt das
+    # fruehere reine An/Aus (can_invite): jede erfolgreiche Invite-Erstellung
+    # durch einen Member zieht das Kontingent um 1 herunter. 0 = keine
+    # Berechtigung. Admins sind davon unabhaengig immer uneingeschraenkt.
+    invite_quota: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
 
     # Premium/VIP-Fundament (noch ohne Feature-Gating -- reine Kennzeichnung
     # + Badge-Darstellung, echte Premium-only-Tools folgen spaeter).
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
     premium_badge_color: Mapped[str] = mapped_column(String(9), default="#F5C518", server_default=text("'#F5C518'"), nullable=False)
+
+    # Eigenstaendiges Anzeigename-Customizing -- NUR fuer Premium-User
+    # selbst editierbar (siehe /auth/me/display-style), nicht admin-verwaltet.
+    # style: "default" | "solid" | "gradient" | "particles"
+    display_name_style: Mapped[str] = mapped_column(String(16), default="default", server_default=text("'default'"), nullable=False)
+    display_name_color: Mapped[str] = mapped_column(String(9), default="#35E0C0", server_default=text("'#35E0C0'"), nullable=False)
+    display_name_gradient_color: Mapped[str] = mapped_column(String(9), default="#F5C518", server_default=text("'#F5C518'"), nullable=False)
 
     webauthn_credentials: Mapped[list["WebAuthnCredential"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

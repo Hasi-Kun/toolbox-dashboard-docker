@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
+from app.core.audit import get_client_ip
 from app.core.config import get_settings
 from app.core.db import Base, engine  # noqa: F401 -- Base bleibt fuer evtl. Tooling importierbar
 from app.core.logging_config import configure_logging
@@ -44,7 +45,7 @@ async def log_requests(request: Request, call_next):
     Frontend-BFF-Proxy 1:1 an das Backend durchgereicht. Der Zeitstempel
     kommt automatisch aus dem Logging-Format (siehe logging_config.py).
     """
-    real_ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+    real_ip = get_client_ip(request) or "unknown"
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start) * 1000

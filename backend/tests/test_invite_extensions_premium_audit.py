@@ -26,7 +26,13 @@ def _create_member(username: str, password: str, can_invite: bool = False) -> No
     from app.models.user import User, UserRole
 
     db = SessionLocal()
-    db.add(User(username=username, password_hash=hash_password(password), role=UserRole.MEMBER.value, is_active=True, can_invite=can_invite))
+    # can_invite=True wird hier auf ein Kontingent von 3 abgebildet (die
+    # Tests in dieser Datei pruefen nur "darf ueberhaupt erstellen", nicht
+    # die genaue Kontingent-Anzahl -- die hat eine eigene Testdatei).
+    db.add(User(
+        username=username, password_hash=hash_password(password), role=UserRole.MEMBER.value,
+        is_active=True, invite_quota=3 if can_invite else 0,
+    ))
     db.commit()
     db.close()
 
@@ -131,7 +137,7 @@ def test_user_out_includes_premium_fields(client):
     users = client.get("/api/v1/users").json()
     assert "is_premium" in users[0]
     assert "premium_badge_color" in users[0]
-    assert "can_invite" in users[0]
+    assert "invite_quota" in users[0]
 
 
 def test_admin_can_grant_premium(client):

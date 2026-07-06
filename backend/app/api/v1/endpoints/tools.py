@@ -92,7 +92,12 @@ async def run_tool(
         raise HTTPException(status_code=422, detail=errors) from exc
 
     module = module_cls()
-    timeout = module_cls.timeout_seconds or settings.default_timeout_seconds
+    # +5s Puffer: das Modul soll seinen EIGENEN Timeout (z.B. httpx-Client)
+    # zuerst ausloesen und sauber abfangen koennen. Ohne Puffer laufen
+    # beide Timeouts im Wettlauf gegeneinander -- gewinnt der aeussere
+    # asyncio.wait_for, gibt es einen 504 statt einer sauberen Fehlermeldung
+    # (siehe Incident: certificate-transparency bei langsamer crt.sh-Antwort).
+    timeout = (module_cls.timeout_seconds or settings.default_timeout_seconds) + 5
 
     try:
         result = await asyncio.wait_for(module.run(input_data), timeout=timeout)

@@ -34,10 +34,13 @@ export async function proxyToBackend(
       headers: {
         "Content-Type": "application/json",
         cookie,
-        // X-Real-IP wird von Caddy schon fuer das Frontend gesetzt;
-        // hier reichen wir sie 1:1 weiter, damit Rate-Limiting im
-        // Backend nicht alle Requests unter der internen Docker-IP sieht.
+        // Mehrere moegliche IP-Header durchreichen, nicht nur X-Real-IP --
+        // je nachdem, wie Caddy konfiguriert ist, setzt es moeglicherweise
+        // nur eines davon. Das Backend prueft alle drei der Reihe nach
+        // (siehe app/core/audit.py: get_client_ip).
         "x-real-ip": request.headers.get("x-real-ip") ?? "",
+        "cf-connecting-ip": request.headers.get("cf-connecting-ip") ?? "",
+        "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
       },
       body,
       cache: "no-store",

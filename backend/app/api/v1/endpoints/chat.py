@@ -56,8 +56,25 @@ class MessageOut(BaseModel):
     message: str
     created_at: str
     is_own: bool = False
+    role: str = "member"
     is_premium: bool = False
     premium_badge_color: str = "#F5C518"
+    display_name_style: str = "default"
+    display_name_color: str = "#35E0C0"
+    display_name_gradient_color: str = "#F5C518"
+
+
+def _author_display_fields(user: User | None) -> dict:
+    if user is None:
+        return {}
+    return {
+        "role": user.role,
+        "is_premium": user.is_premium,
+        "premium_badge_color": user.premium_badge_color,
+        "display_name_style": user.display_name_style,
+        "display_name_color": user.display_name_color,
+        "display_name_gradient_color": user.display_name_gradient_color,
+    }
 
 
 @router.get("/messages", response_model=list[MessageOut])
@@ -76,8 +93,7 @@ async def list_messages(
         MessageOut(
             id=m.id, username=m.username, message=m.message, created_at=m.created_at.isoformat(),
             is_own=m.user_id == user.id,
-            is_premium=authors[m.user_id].is_premium if m.user_id in authors else False,
-            premium_badge_color=authors[m.user_id].premium_badge_color if m.user_id in authors else "#F5C518",
+            **_author_display_fields(authors.get(m.user_id)),
         )
         for m in messages
     ]
@@ -97,7 +113,7 @@ async def post_message(
     db.refresh(msg)
     return MessageOut(
         id=msg.id, username=msg.username, message=msg.message, created_at=msg.created_at.isoformat(), is_own=True,
-        is_premium=user.is_premium, premium_badge_color=user.premium_badge_color,
+        **_author_display_fields(user),
     )
 
 

@@ -23,7 +23,7 @@ class UserOut(BaseModel):
     role: str
     is_active: bool
     has_2fa: bool
-    can_invite: bool
+    invite_quota: int
     is_premium: bool
     premium_badge_color: str
 
@@ -68,7 +68,7 @@ class CreateUserResponse(BaseModel):
 class UpdateUserRequest(BaseModel):
     role: str | None = None
     is_active: bool | None = None
-    can_invite: bool | None = None
+    invite_quota: int | None = None
     is_premium: bool | None = None
     premium_badge_color: str | None = None
 
@@ -77,6 +77,13 @@ class UpdateUserRequest(BaseModel):
     def validate_role(cls, v: str | None) -> str | None:
         if v is not None and v not in {r.value for r in UserRole}:
             raise ValueError("Ungueltige Rolle")
+        return v
+
+    @field_validator("invite_quota")
+    @classmethod
+    def validate_invite_quota(cls, v: int | None) -> int | None:
+        if v is not None and not (0 <= v <= 1000):
+            raise ValueError("Invite-Kontingent muss zwischen 0 und 1000 liegen")
         return v
 
     @field_validator("premium_badge_color")
@@ -145,9 +152,9 @@ async def update_user(
     if payload.is_active is not None:
         changes.append(f"is_active={payload.is_active}")
         user.is_active = payload.is_active
-    if payload.can_invite is not None:
-        changes.append(f"can_invite={payload.can_invite}")
-        user.can_invite = payload.can_invite
+    if payload.invite_quota is not None:
+        changes.append(f"invite_quota={payload.invite_quota}")
+        user.invite_quota = payload.invite_quota
     if payload.is_premium is not None:
         changes.append(f"is_premium={payload.is_premium}")
         user.is_premium = payload.is_premium
@@ -267,7 +274,7 @@ async def list_invites(db: Session = Depends(get_db), _admin: User = Depends(req
 @router.get("/invites/mine", response_model=list[InviteOut])
 async def list_my_invites(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[InviteOut]:
     """Self-Service-Ansicht: nur die eigenen erstellten Invites -- damit
-    sieht ein Member mit can_invite=True, wer sich mit seinem Code
+    sieht ein Member mit Invite-Kontingent, wer sich mit seinem Code
     registriert hat ('seine Invitees')."""
     invites = (
         db.query(InviteCode)
@@ -283,8 +290,11 @@ async def create_invite(
     payload: CreateInviteRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> InviteOut:
     is_admin = user.role == UserRole.ADMIN.value
-    if not is_admin and not user.can_invite:
-        raise HTTPException(status_code=403, detail="Du hast keine Berechtigung, Einladungscodes zu erstellen")
+    if not is_admin and user.invite_quota <= 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Du hast kein Invite-Kontingent mehr uebrig. Ein Administrator kann dir weitere Invites zuteilen.",
+        )
 
     # Members duerfen NIEMALS admin-Invites erzeugen, unabhaengig davon,
     # was im Request steht -- nur echte Admins koennen Admin-Zugang vergeben.
@@ -302,12 +312,20 @@ async def create_invite(
         expires_at=expires_at,
     )
     db.add(invite)
+
+    # Kontingent erst NACH erfolgreichem Anlegen herunterzaehlen (Admins
+    # sind davon unabhaengig unbegrenzt).
+    if not is_admin:
+        user.invite_quota -= 1
+        db.add(user)
+
     db.commit()
     db.refresh(invite)
 
     log_audit_event(
         db, "invite_created", success=True, username=user.username, ip_address=get_client_ip(request),
-        detail=f"Invite erstellt von '{user.username}' (Rolle: {role})",
+        detail=f"Invite erstellt von '{user.username}' (Rolle: {role}, verbleibendes Kontingent: "
+        f"{'unbegrenzt' if is_admin else user.invite_quota})",
     )
     return InviteOut.from_model(invite, db)
 
@@ -325,6 +343,12 @@ async def revoke_invite(
         raise HTTPException(status_code=403, detail="Du kannst nur deine eigenen Einladungscodes widerrufen")
     if invite.used_at is not None:
         raise HTTPException(status_code=400, detail="Bereits verwendete Codes koennen nicht widerrufen werden (nur geloescht)")
+
+    # Kontingent zurueckgeben, wenn ein Member seinen eigenen, nie
+    # verwendeten Invite widerruft -- er soll dafuer nicht "bestraft" werden.
+    if not is_admin and invite.created_by_id == user.id:
+        user.invite_quota += 1
+        db.add(user)
 
     db.delete(invite)
     db.commit()

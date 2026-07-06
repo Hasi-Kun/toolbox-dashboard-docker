@@ -141,6 +141,10 @@ export const translations = {
     "tools.asn-lookup.description": "Ermittelt das Autonome System (ASN) und die Organisation hinter einer IP/Domain.",
     "tools.wayback-history.name": "Wayback Machine History",
     "tools.wayback-history.description": "Zeigt historische Snapshots einer Domain aus der Wayback Machine.",
+    "tools.google-dork-generator.name": "Google Dork Generator",
+    "tools.google-dork-generator.description": "Erzeugt nuetzliche Google-Suchanfragen fuer eine Domain -- rein lokale Textgenerierung.",
+    "tools.tech-fingerprint.name": "Web Technology Fingerprint",
+    "tools.tech-fingerprint.description": "Erkennt CMS/Framework/Analytics-Hinweise anhand von HTTP-Headern und Seiteninhalt.",
     "tools.ip-geolocation.name": "IP Geolocation Lookup",
     "tools.ip-geolocation.description": "Ermittelt Standort, ISP und Organisation einer IP/Domain inkl. Karten-Link.",
     "tools.jwt-decoder.name": "JWT Decoder",
@@ -338,6 +342,10 @@ export const translations = {
     "tools.asn-lookup.description": "Determines the Autonomous System (ASN) and organization behind an IP/domain.",
     "tools.wayback-history.name": "Wayback Machine History",
     "tools.wayback-history.description": "Shows historical snapshots of a domain from the Wayback Machine.",
+    "tools.google-dork-generator.name": "Google Dork Generator",
+    "tools.google-dork-generator.description": "Generates useful Google search queries for a domain -- purely local text generation.",
+    "tools.tech-fingerprint.name": "Web Technology Fingerprint",
+    "tools.tech-fingerprint.description": "Detects CMS/framework/analytics hints from HTTP headers and page content.",
   },
 } as const;
 

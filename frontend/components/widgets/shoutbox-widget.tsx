@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
-import { PremiumBadge } from "@/components/premium-badge";
+import { StyledUsername } from "@/components/styled-username";
 
-type Message = { id: number; username: string; message: string; created_at: string; is_own: boolean; is_premium: boolean; premium_badge_color: string };
+type Message = {
+  id: number; username: string; message: string; created_at: string; is_own: boolean; role: string;
+  is_premium: boolean; premium_badge_color: string; display_name_style: string; display_name_color: string;
+  display_name_gradient_color: string;
+};
 type Me = { role: string };
 
 function timeAgo(isoString: string): string {
@@ -81,8 +85,15 @@ export function ShoutboxWidget() {
         {messages?.map((m) => (
           <div key={m.id} className="group flex items-start justify-between gap-2 text-sm">
             <div className="min-w-0">
-              <span className={m.is_own ? "font-medium text-signal" : "font-medium text-ink"}>{m.username}</span>
-              {m.is_premium && <PremiumBadge color={m.premium_badge_color} />}
+              <StyledUsername
+                username={m.username}
+                role={m.role}
+                isPremium={m.is_premium}
+                displayNameStyle={m.display_name_style}
+                displayNameColor={m.display_name_color}
+                displayNameGradientColor={m.display_name_gradient_color}
+                premiumBadgeColor={m.premium_badge_color}
+              />
               <span className="ml-1.5 text-xs text-ink-muted">{timeAgo(m.created_at)}</span>
               <p className="break-words text-ink">{m.message}</p>
             </div>

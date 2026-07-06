@@ -36,7 +36,7 @@ def test_full_login_flow_with_totp_setup(client):
     # Jetzt authentifiziert
     r = client.get("/api/v1/tools")
     assert r.status_code == 200
-    assert len(r.json()) == 48
+    assert len(r.json()) == 50
 
     me = client.get("/api/v1/auth/me").json()
     assert me["has_2fa"] is True

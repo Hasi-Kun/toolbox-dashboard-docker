@@ -88,10 +88,10 @@ def test_every_migration_succeeds_against_table_with_existing_rows(tmp_db_path):
     assert _get_version(tmp_db_path) == _current_head()
 
     conn = sqlite3.connect(tmp_db_path)
-    row = conn.execute("SELECT username, can_invite, premium_badge_color FROM users WHERE username='realuser'").fetchone()
+    row = conn.execute("SELECT username, invite_quota, premium_badge_color FROM users WHERE username='realuser'").fetchone()
     conn.close()
     assert row is not None, "Der bestehende Benutzer ist bei der Migration verlorengegangen!"
-    assert row[1] == 0  # can_invite Default
+    assert row[1] == 0  # invite_quota Default
     assert row[2] == "#F5C518"  # premium_badge_color Default
 
 
@@ -195,7 +195,7 @@ def test_schema_verification_triggers_self_repair_on_falsely_stamped_database(tm
     conn = sqlite3.connect(db_path)
     columns = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
     conn.close()
-    assert "can_invite" in columns
+    assert "invite_quota" in columns
 
 
 def test_schema_verification_passes_on_correctly_migrated_database(tmp_db_path):

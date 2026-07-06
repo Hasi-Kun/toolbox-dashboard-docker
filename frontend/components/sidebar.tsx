@@ -20,6 +20,7 @@ import {
   UserPlus,
   ScrollText,
   Eye,
+  Sparkles,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { cn } from "@/lib/utils";
@@ -43,17 +44,20 @@ export function Sidebar() {
   const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
   const [canInvite, setCanInvite] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((me: { role?: string; can_invite?: boolean } | null) => {
+      .then((me: { role?: string; invite_quota?: number; is_premium?: boolean } | null) => {
         setIsAdmin(me?.role === "admin");
-        setCanInvite(Boolean(me?.can_invite));
+        setCanInvite((me?.invite_quota ?? 0) > 0);
+        setIsPremium(Boolean(me?.is_premium));
       })
       .catch(() => {
         setIsAdmin(false);
         setCanInvite(false);
+        setIsPremium(false);
       });
   }, []);
 
@@ -117,6 +121,11 @@ export function Sidebar() {
           <li>
             <SidebarLink href="/settings/security" icon={Lock} label={t("sidebar.security")} active={pathname === "/settings/security"} />
           </li>
+          {isPremium && (
+            <li>
+              <SidebarLink href="/settings/display-style" icon={Sparkles} label="Anzeigename-Style" active={pathname === "/settings/display-style"} />
+            </li>
+          )}
           {isAdmin && (
             <li>
               <SidebarLink

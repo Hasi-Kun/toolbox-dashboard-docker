@@ -13,7 +13,7 @@ type UserRow = {
   role: string;
   is_active: boolean;
   has_2fa: boolean;
-  can_invite: boolean;
+  invite_quota: number;
   is_premium: boolean;
   premium_badge_color: string;
 };
@@ -100,11 +100,12 @@ export default function UsersSettingsPage() {
     await loadUsers();
   }
 
-  async function handleToggleInvite(user: UserRow) {
+  async function handleSetInviteQuota(user: UserRow, newQuota: number) {
+    if (Number.isNaN(newQuota) || newQuota < 0 || newQuota > 1000) return;
     await fetch(`/api/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ can_invite: !user.can_invite }),
+      body: JSON.stringify({ invite_quota: newQuota }),
     });
     await loadUsers();
   }
@@ -202,7 +203,7 @@ export default function UsersSettingsPage() {
                   <th className="px-4 py-3">Rolle</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">2FA</th>
-                  <th className="px-4 py-3">Invite-Recht</th>
+                  <th className="px-4 py-3">Invite-Kontingent</th>
                   <th className="px-4 py-3">Premium</th>
                   <th className="px-4 py-3 text-right">Aktionen</th>
                 </tr>
@@ -228,13 +229,18 @@ export default function UsersSettingsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleInvite(user)}
-                        className={`rounded-full px-2 py-0.5 text-xs ${user.can_invite ? "bg-signal/10 text-signal" : "bg-base-border text-ink-muted"}`}
-                      >
-                        {user.can_invite ? "Erlaubt" : "Gesperrt"}
-                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1000}
+                        defaultValue={user.invite_quota}
+                        onBlur={(e) => {
+                          const value = Number(e.target.value);
+                          if (value !== user.invite_quota) handleSetInviteQuota(user, value);
+                        }}
+                        className="input w-16 py-1 text-center text-xs"
+                        title="Anzahl der Einladungscodes, die dieser Nutzer selbst erstellen darf"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <button

@@ -32,7 +32,7 @@ class CertificateTransparencyModule(ToolModule):
         "CA, Seriennummer, SANs)."
     )
     is_active_scan = False
-    timeout_seconds = 15
+    timeout_seconds = 35  # crt.sh ist bei grossen Domains bekanntermassen langsam
 
     class Input(BaseModel):
         domain: str

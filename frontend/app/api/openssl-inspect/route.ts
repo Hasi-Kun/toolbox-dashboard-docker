@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
         "Content-Type": contentType,
         cookie,
         "x-real-ip": request.headers.get("x-real-ip") ?? "",
+        "cf-connecting-ip": request.headers.get("cf-connecting-ip") ?? "",
+        "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
       },
       body,
       cache: "no-store",

@@ -84,10 +84,24 @@
   animation: premium-shimmer 2.5s ease-in-out infinite;
 }
 
+@keyframes styled-name-sparkle {
+  0%, 100% {
+    text-shadow: 0 0 2px currentColor, 0 0 0px currentColor;
+  }
+  50% {
+    text-shadow: 0 0 8px currentColor, 0 0 2px currentColor;
+  }
+}
+
+.styled-name-particles {
+  animation: styled-name-sparkle 2.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-pulse,
   .radar-sweep,
-  .premium-badge {
+  .premium-badge,
+  .styled-name-particles {
     animation: none;
   }
 }

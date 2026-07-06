@@ -20,7 +20,7 @@ type Invite = {
 export default function InvitesPage() {
   const { me, loaded } = useMe();
   const isAdmin = me?.role === "admin";
-  const canCreate = isAdmin || Boolean(me?.can_invite);
+  const canCreate = isAdmin || (me?.invite_quota ?? 0) > 0;
 
   const [invites, setInvites] = useState<Invite[] | null>(null);
   const [note, setNote] = useState("");
@@ -102,6 +102,11 @@ export default function InvitesPage() {
               ? "Registrierung ist nur mit einem gueltigen Einladungscode moeglich."
               : "Deine eigenen Einladungscodes -- hier siehst du, wer sich mit deinem Code registriert hat."}
           </p>
+          {!isAdmin && me && (
+            <p className="mt-1 text-xs text-ink-muted">
+              Verbleibendes Kontingent: <span className="font-mono text-signal">{me.invite_quota}</span>
+            </p>
+          )}
 
           {error && (
             <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">{error}</p>

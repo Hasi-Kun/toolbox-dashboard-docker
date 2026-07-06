@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 data/
 *.db
+placeholder.ps1
+.gitignore_readme.txt
+placeholder-checker.ps1
+README.md
+README.md
