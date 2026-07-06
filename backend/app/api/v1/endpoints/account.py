@@ -21,7 +21,7 @@ settings = get_settings()
 router = APIRouter()
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-_ALLOWED_DISPLAY_STYLES = {"default", "solid", "gradient", "particles", "twinkle"}
+_ALLOWED_DISPLAY_STYLES = {"default", "solid", "gradient", "particles", "twinkle", "glitter", "rainbow"}
 
 
 # --- Schemas -----------------------------------------------------------

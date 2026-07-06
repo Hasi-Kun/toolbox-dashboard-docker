@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import httpx
@@ -7,6 +8,13 @@ from app.modules.base import ToolModule, register_module
 from app.modules.dns.common import is_valid_hostname
 
 MAX_DETAILED_ENTRIES = 30
+MAX_ATTEMPTS = 3
+PER_ATTEMPT_TIMEOUT = 10.0
+RETRY_DELAY_SECONDS = 1.5
+# Status-Codes, die auf ein VORUEBERGEHENDES crt.sh-Problem hindeuten
+# (eigener Server ueberlastet) -- dafuer lohnt sich ein Retry. Ein 4xx
+# (z.B. ungueltige Anfrage) wuerde beim Wiederholen nicht anders ausgehen.
+_RETRYABLE_STATUS_CODES = {502, 503, 504}
 
 
 class CertificateEntry(BaseModel):
@@ -56,16 +64,31 @@ class CertificateTransparencyModule(ToolModule):
 
     async def run(self, data: Input) -> Output:
         url = f"https://crt.sh/?q=%25.{data.domain}&output=json"
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.get(url, headers={"User-Agent": "Toolbox-CT-Lookup/1.0"})
-        except httpx.HTTPError as exc:
-            return self.Output(domain=data.domain, success=False, total_certificates=0, error=str(exc))
+        response = None
+        last_error: str | None = None
 
-        if response.status_code != 200:
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                async with httpx.AsyncClient(timeout=PER_ATTEMPT_TIMEOUT) as client:
+                    response = await client.get(url, headers={"User-Agent": "Toolbox-CT-Lookup/1.0"})
+            except httpx.HTTPError as exc:
+                last_error = str(exc)
+                response = None
+            else:
+                if response.status_code == 200:
+                    break
+                last_error = f"crt.sh antwortete mit HTTP {response.status_code}"
+                if response.status_code not in _RETRYABLE_STATUS_CODES:
+                    break  # kein voruebergehendes Problem -- Wiederholen wuerde nichts aendern
+
+            if attempt < MAX_ATTEMPTS:
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+
+        if response is None or response.status_code != 200:
             return self.Output(
                 domain=data.domain, success=False, total_certificates=0,
-                error=f"crt.sh antwortete mit HTTP {response.status_code}",
+                error=f"{last_error} (crt.sh ist ein unbezahlter Community-Dienst und gelegentlich "
+                f"ueberlastet -- nach {MAX_ATTEMPTS} Versuchen aufgegeben, spaeter nochmal probieren)",
             )
 
         try:

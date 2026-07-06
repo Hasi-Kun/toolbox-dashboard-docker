@@ -44,6 +44,11 @@ export function StyledUsername({
     nameStyle.backgroundClip = "text";
     nameStyle.color = "transparent";
     (nameStyle as Record<string, string>)["--twinkle-glow"] = displayNameGradientColor;
+  } else if (applyStyle && displayNameStyle === "glitter") {
+    nameClassName += " styled-name-glitter";
+    (nameStyle as Record<string, string>)["--glitter-base"] = displayNameColor;
+  } else if (applyStyle && displayNameStyle === "rainbow") {
+    nameClassName += " styled-name-rainbow";
   }
 
   return (

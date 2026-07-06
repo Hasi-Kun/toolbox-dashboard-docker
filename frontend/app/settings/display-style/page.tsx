@@ -13,6 +13,8 @@ const STYLES: { value: string; label: string }[] = [
   { value: "gradient", label: "Farbverlauf" },
   { value: "particles", label: "Glanz-Effekt" },
   { value: "twinkle", label: "Twinkle" },
+  { value: "glitter", label: "Glitter" },
+  { value: "rainbow", label: "Regenbogen" },
 ];
 
 export default function DisplayStylePage() {
@@ -116,7 +118,7 @@ export default function DisplayStylePage() {
                 ))}
               </div>
 
-              {style !== "default" && (
+              {style !== "default" && style !== "rainbow" && (
                 <div className="flex gap-4">
                   <label className="block">
                     <span className="mb-1.5 block text-xs font-medium text-ink-muted">Farbe</span>
@@ -129,6 +131,9 @@ export default function DisplayStylePage() {
                     </label>
                   )}
                 </div>
+              )}
+              {style === "rainbow" && (
+                <p className="text-xs text-ink-muted">Der Regenbogen-Stil zyklt automatisch durch alle Farben, keine Einstellung noetig.</p>
               )}
 
               <button type="submit" disabled={saving} className="submit-button w-auto px-4">

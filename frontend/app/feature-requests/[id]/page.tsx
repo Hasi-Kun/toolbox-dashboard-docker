@@ -6,8 +6,18 @@ import Link from "next/link";
 import { ArrowBigDown, ArrowBigUp, ArrowLeft, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { StyledUsername } from "@/components/styled-username";
 
-type Comment = { id: number; username: string; comment: string; created_at: string };
+type DisplayFields = {
+  role: string;
+  is_premium: boolean;
+  premium_badge_color: string;
+  display_name_style: string;
+  display_name_color: string;
+  display_name_gradient_color: string;
+};
+
+type Comment = { id: number; username: string; comment: string; created_at: string } & DisplayFields;
 type Detail = {
   id: number;
   title: string;
@@ -20,7 +30,7 @@ type Detail = {
   downvotes: number;
   user_vote: number;
   comments: Comment[];
-};
+} & DisplayFields;
 type Me = { id: number; username: string; role: string };
 
 const STATUS_OPTIONS = ["open", "planned", "done", "rejected"];
@@ -133,8 +143,18 @@ export default function FeatureRequestDetailPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h1 className="font-display text-xl text-ink">{detail.title}</h1>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    von {detail.username} &middot; {detail.upvotes} Pro / {detail.downvotes} Contra
+                  <p className="mt-1 flex items-center gap-1 text-xs text-ink-muted">
+                    von
+                    <StyledUsername
+                      username={detail.username}
+                      role={detail.role}
+                      isPremium={detail.is_premium}
+                      displayNameStyle={detail.display_name_style}
+                      displayNameColor={detail.display_name_color}
+                      displayNameGradientColor={detail.display_name_gradient_color}
+                      premiumBadgeColor={detail.premium_badge_color}
+                    />
+                    &middot; {detail.upvotes} Pro / {detail.downvotes} Contra
                   </p>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-ink">{detail.description}</p>
                 </div>
@@ -172,7 +192,18 @@ export default function FeatureRequestDetailPage() {
                 {detail.comments.map((c) => (
                   <div key={c.id} className="group flex items-start justify-between gap-2 rounded-lg border border-base-border bg-base-elevated p-3">
                     <div>
-                      <p className="text-xs font-medium text-ink">{c.username}</p>
+                      <p className="text-xs font-medium text-ink">
+                        <StyledUsername
+                          username={c.username}
+                          role={c.role}
+                          isPremium={c.is_premium}
+                          displayNameStyle={c.display_name_style}
+                          displayNameColor={c.display_name_color}
+                          displayNameGradientColor={c.display_name_gradient_color}
+                          premiumBadgeColor={c.premium_badge_color}
+                          showBadge={false}
+                        />
+                      </p>
                       <p className="mt-0.5 text-sm text-ink-muted">{c.comment}</p>
                     </div>
                     {(me?.role === "admin" || me?.username === c.username) && (

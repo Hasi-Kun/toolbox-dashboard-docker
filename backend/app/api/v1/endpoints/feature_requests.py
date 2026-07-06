@@ -90,6 +90,12 @@ class RequestSummaryOut(BaseModel):
     downvotes: int
     comment_count: int
     user_vote: int
+    role: str = "member"
+    is_premium: bool = False
+    premium_badge_color: str = "#F5C518"
+    display_name_style: str = "default"
+    display_name_color: str = "#35E0C0"
+    display_name_gradient_color: str = "#F5C518"
 
 
 class CommentOut(BaseModel):
@@ -97,10 +103,29 @@ class CommentOut(BaseModel):
     username: str
     comment: str
     created_at: str
+    role: str = "member"
+    is_premium: bool = False
+    premium_badge_color: str = "#F5C518"
+    display_name_style: str = "default"
+    display_name_color: str = "#35E0C0"
+    display_name_gradient_color: str = "#F5C518"
 
 
 class RequestDetailOut(RequestSummaryOut):
     comments: list[CommentOut]
+
+
+def _author_fields(author: User | None) -> dict:
+    if author is None:
+        return {}
+    return {
+        "role": author.role,
+        "is_premium": author.is_premium,
+        "premium_badge_color": author.premium_badge_color,
+        "display_name_style": author.display_name_style,
+        "display_name_color": author.display_name_color,
+        "display_name_gradient_color": author.display_name_gradient_color,
+    }
 
 
 def _score(db: Session, request_id: int) -> int:
@@ -131,11 +156,13 @@ def _user_vote(db: Session, request_id: int, user_id: int) -> int:
 
 
 def _summary(db: Session, fr: FeatureRequest, user_id: int) -> RequestSummaryOut:
+    author = db.get(User, fr.user_id) if fr.user_id else None
     return RequestSummaryOut(
         id=fr.id, title=fr.title, description=fr.description, status=fr.status, username=fr.username,
         created_at=fr.created_at.isoformat(), score=_score(db, fr.id),
         upvotes=_upvotes(db, fr.id), downvotes=_downvotes(db, fr.id),
         comment_count=len(fr.comments), user_vote=_user_vote(db, fr.id, user_id),
+        **_author_fields(author),
     )
 
 
@@ -191,10 +218,19 @@ async def get_request(request_id: int, db: Session = Depends(get_db), user: User
         raise HTTPException(status_code=404, detail="Feature-Request nicht gefunden")
 
     comments = sorted(fr.comments, key=lambda c: c.created_at)
+    commenter_ids = {c.user_id for c in comments if c.user_id is not None}
+    commenters = {u.id: u for u in db.query(User).filter(User.id.in_(commenter_ids)).all()} if commenter_ids else {}
+
     summary = _summary(db, fr, user.id)
     return RequestDetailOut(
         **summary.model_dump(),
-        comments=[CommentOut(id=c.id, username=c.username, comment=c.comment, created_at=c.created_at.isoformat()) for c in comments],
+        comments=[
+            CommentOut(
+                id=c.id, username=c.username, comment=c.comment, created_at=c.created_at.isoformat(),
+                **_author_fields(commenters.get(c.user_id)),
+            )
+            for c in comments
+        ],
     )
 
 
@@ -242,7 +278,10 @@ async def add_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
-    return CommentOut(id=comment.id, username=comment.username, comment=comment.comment, created_at=comment.created_at.isoformat())
+    return CommentOut(
+        id=comment.id, username=comment.username, comment=comment.comment, created_at=comment.created_at.isoformat(),
+        **_author_fields(user),
+    )
 
 
 @router.delete("/{request_id}/comments/{comment_id}")

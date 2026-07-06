@@ -149,6 +149,100 @@ def test_chat_message_includes_author_display_fields(client):
     assert r.json()["role"] == "member"
 
 
+def test_premium_user_can_set_glitter_and_rainbow_styles(client):
+    _create_member("bob", "BobsSicheresPasswort1", is_premium=True)
+    _login_with_totp_setup(client, "bob", "BobsSicheresPasswort1")
+
+    for style in ["glitter", "rainbow"]:
+        r = client.patch("/api/v1/auth/me/display-style", json={
+            "display_name_style": style, "display_name_color": "#FF00FF", "display_name_gradient_color": "#00FFFF",
+        })
+        assert r.status_code == 200, style
+        assert r.json()["display_name_style"] == style
+
+
+def test_feature_request_includes_author_display_fields(client):
+    _create_member("bob", "BobsSicheresPasswort1", is_premium=True)
+    _login_with_totp_setup(client, "bob", "BobsSicheresPasswort1")
+    client.patch("/api/v1/auth/me/display-style", json={
+        "display_name_style": "rainbow", "display_name_color": "#FF0000", "display_name_gradient_color": "#00FF00",
+    })
+
+    r = client.post("/api/v1/feature-requests", json={"title": "Test", "description": "Beschreibung"})
+    req_id = r.json()["id"]
+    assert r.json()["display_name_style"] == "rainbow"
+    assert r.json()["is_premium"] is True
+
+    client.post(f"/api/v1/feature-requests/{req_id}/comments", json={"comment": "Kommentar"})
+    detail = client.get(f"/api/v1/feature-requests/{req_id}").json()
+    assert detail["comments"][0]["display_name_style"] == "rainbow"
+
+    listing = client.get("/api/v1/feature-requests").json()
+    assert listing[0]["display_name_style"] == "rainbow"
+
+
+def test_non_premium_user_shows_default_style_in_feature_request(client):
+    _create_member("bob", "BobsSicheresPasswort1", is_premium=False)
+    _login_with_totp_setup(client, "bob", "BobsSicheresPasswort1")
+
+    r = client.post("/api/v1/feature-requests", json={"title": "Test", "description": "Beschreibung"})
+    assert r.json()["display_name_style"] == "default"
+    assert r.json()["is_premium"] is False
+
+
+@pytest.mark.asyncio
+async def test_ct_log_retries_transient_502_and_succeeds():
+    from app.modules.certificates.certificate_transparency import CertificateTransparencyModule
+
+    call_count = 0
+
+    class FakeResponse502:
+        status_code = 502
+
+    class FakeResponse200:
+        status_code = 200
+
+        def json(self):
+            return [{"id": 1, "issuer_name": "CA", "common_name": "example.com", "name_value": "example.com",
+                      "not_before": "2026-01-01T00:00:00", "not_after": "2027-01-01T00:00:00", "serial_number": "aa"}]
+
+    async def flaky_get(self, url, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return FakeResponse502() if call_count < 3 else FakeResponse200()
+
+    with patch("httpx.AsyncClient.get", new=flaky_get):
+        result = await CertificateTransparencyModule().run(CertificateTransparencyModule.Input(domain="example.com"))
+
+    assert call_count == 3
+    assert result.success is True
+
+
+@pytest.mark.asyncio
+async def test_ct_log_gives_up_cleanly_after_persistent_502():
+    import time
+    from app.modules.certificates.certificate_transparency import CertificateTransparencyModule
+
+    call_count = 0
+
+    class FakeResponse502:
+        status_code = 502
+
+    async def always_502(self, url, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return FakeResponse502()
+
+    with patch("httpx.AsyncClient.get", new=always_502):
+        start = time.time()
+        result = await CertificateTransparencyModule().run(CertificateTransparencyModule.Input(domain="example.com"))
+        duration = time.time() - start
+
+    assert call_count == 3
+    assert result.success is False
+    assert duration < 10, "Darf nicht bis zum Modul-Timeout durchlaufen -- muss nach 3 Versuchen sauber aufgeben"
+
+
 def test_ct_log_timeout_returns_clean_error_not_504(client):
     import httpx
 

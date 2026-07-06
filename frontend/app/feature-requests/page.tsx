@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowBigDown, ArrowBigUp, Download, MessageCircle, Plus } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { StyledUsername } from "@/components/styled-username";
 
 type FeatureRequestSummary = {
   id: number;
@@ -18,6 +19,12 @@ type FeatureRequestSummary = {
   downvotes: number;
   comment_count: number;
   user_vote: number;
+  role: string;
+  is_premium: boolean;
+  premium_badge_color: string;
+  display_name_style: string;
+  display_name_color: string;
+  display_name_gradient_color: string;
 };
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -181,7 +188,19 @@ export default function FeatureRequestsPage() {
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{r.description}</p>
                           <div className="mt-2 flex items-center gap-3 text-xs text-ink-muted">
-                            <span>von {r.username}</span>
+                            <span className="flex items-center gap-1">
+                              von
+                              <StyledUsername
+                                username={r.username}
+                                role={r.role}
+                                isPremium={r.is_premium}
+                                displayNameStyle={r.display_name_style}
+                                displayNameColor={r.display_name_color}
+                                displayNameGradientColor={r.display_name_gradient_color}
+                                premiumBadgeColor={r.premium_badge_color}
+                                showBadge={false}
+                              />
+                            </span>
                             <span>{r.upvotes} Pro / {r.downvotes} Contra</span>
                             <span className="flex items-center gap-1">
                               <MessageCircle className="h-3 w-3" /> {r.comment_count}

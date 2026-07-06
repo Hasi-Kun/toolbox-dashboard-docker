@@ -97,6 +97,59 @@
   animation: styled-name-sparkle 2.2s ease-in-out infinite;
 }
 
+@keyframes styled-name-glitter {
+  0%, 100% {
+    background-position: 15% 25%, 75% 65%, 40% 85%, 0 0;
+  }
+  50% {
+    background-position: 85% 75%, 25% 35%, 80% 15%, 0 0;
+  }
+}
+
+.styled-name-glitter {
+  background-image:
+    radial-gradient(circle, #ffffff 0%, transparent 65%),
+    radial-gradient(circle, #ffffff 0%, transparent 65%),
+    radial-gradient(circle, #ffffff 0%, transparent 65%),
+    linear-gradient(var(--glitter-base, #35E0C0), var(--glitter-base, #35E0C0));
+  background-size: 10% 10%, 7% 7%, 8% 8%, 100% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+  animation: styled-name-glitter 3.5s ease-in-out infinite;
+}
+
+@keyframes styled-name-rainbow {
+  0% {
+    color: hsl(0, 85%, 65%);
+  }
+  16.6% {
+    color: hsl(60, 85%, 60%);
+  }
+  33.3% {
+    color: hsl(120, 75%, 55%);
+  }
+  50% {
+    color: hsl(180, 80%, 55%);
+  }
+  66.6% {
+    color: hsl(240, 85%, 70%);
+  }
+  83.3% {
+    color: hsl(300, 80%, 65%);
+  }
+  100% {
+    color: hsl(360, 85%, 65%);
+  }
+}
+
+.styled-name-rainbow {
+  font-weight: 600;
+  animation: styled-name-rainbow 5s linear infinite;
+}
+
 @keyframes styled-name-shine {
   to {
     background-position: 200% center;
@@ -153,7 +206,9 @@
   .styled-name-particles,
   .styled-name-twinkle,
   .styled-name-twinkle::before,
-  .styled-name-twinkle::after {
+  .styled-name-twinkle::after,
+  .styled-name-glitter,
+  .styled-name-rainbow {
     animation: none;
   }
 }
