@@ -11,6 +11,18 @@ This project is **domain-template based** and supports automated deployment via 
 
 ---
 
+Disclaimer
+
+This project is actively developed with the assistance of Artificial Intelligence (AI).
+
+AI tools are used to support tasks such as software development, documentation, code generation, refactoring, testing, and general development workflows.
+
+While every effort is made to ensure correctness and quality, users should independently review the code and configuration before using this project in production environments.
+
+Feedback, bug reports, and contributions are always welcome.
+
+---
+
 ## Requirements
 
 * Linux server (Debian 12 / Ubuntu 24.04 recommended)
@@ -152,3 +164,4 @@ docker network create webnet
 Do not deploy directly from repository without running the installer.
 
 All domain values are placeholders and must be replaced during setup.
+
