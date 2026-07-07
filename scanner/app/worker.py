@@ -15,6 +15,7 @@ import redis.asyncio as redis
 
 from app.templates import TEMPLATES, InvalidJobError
 from app.xml_parser import parse_nmap_xml
+from app.nikto_parser import parse_nikto_json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | scanner | %(message)s")
 logger = logging.getLogger("scanner")
@@ -23,30 +24,33 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://toolbox-redis:6379/0")
 QUEUE_KEY = "scanner:jobs"
 RESULT_TTL_SECONDS = 300
 SUBPROCESS_TIMEOUT_SECONDS = 120
+NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 200  # Nikto braucht laenger als ein nmap-Schnellscan
 
 _redis = redis.from_url(REDIS_URL, decode_responses=True)
 
 
-async def run_nmap(args: list[str]) -> str:
-    """Fuehrt nmap ueber argv-Liste aus (nie Shell), gibt stdout (XML) zurueck."""
-    env = {**os.environ, "NMAP_PRIVILEGED": "1"}
+async def run_command(args: list[str], timeout: int) -> str:
+    """Fuehrt ein beliebiges (fest vorgegebenes) Kommando ueber argv-Liste
+    aus (nie Shell), gibt stdout zurueck. Gemeinsam fuer nmap UND nikto,
+    da beide gleich aufgerufen werden (nur die Argument-Liste unterscheidet
+    sich, die kommt bereits fertig validiert aus templates.py)."""
     process = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=env,
+        env={**os.environ, "NMAP_PRIVILEGED": "1"},
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            process.communicate(), timeout=SUBPROCESS_TIMEOUT_SECONDS
+            process.communicate(), timeout=timeout
         )
     except asyncio.TimeoutError:
         process.kill()
         await process.wait()
-        raise TimeoutError("nmap-Scan hat das Zeitlimit ueberschritten")
+        raise TimeoutError(f"{args[0]}-Scan hat das Zeitlimit ueberschritten")
 
-    if process.returncode != 0:
-        raise RuntimeError(stderr_bytes.decode("utf-8", errors="replace")[:500] or "nmap ist fehlgeschlagen")
+    if process.returncode != 0 and not stdout_bytes:
+        raise RuntimeError(stderr_bytes.decode("utf-8", errors="replace")[:500] or f"{args[0]} ist fehlgeschlagen")
 
     return stdout_bytes.decode("utf-8", errors="replace")
 
@@ -65,10 +69,16 @@ async def handle_job(job: dict) -> None:
             raise InvalidJobError(f"Unbekanntes Template: {template_name}")
 
         args = builder(params)
-        xml_output = await run_nmap(args)
-        hosts = parse_nmap_xml(xml_output)
-        result = {"hosts": hosts}
-        logger.info("Job %s: fertig, %d Host(s)", job_id, len(hosts))
+
+        if template_name == "nikto":
+            raw_output = await run_command(args, timeout=NIKTO_SUBPROCESS_TIMEOUT_SECONDS)
+            result = parse_nikto_json(raw_output)
+        else:
+            raw_output = await run_command(args, timeout=SUBPROCESS_TIMEOUT_SECONDS)
+            hosts = parse_nmap_xml(raw_output)
+            result = {"hosts": hosts}
+
+        logger.info("Job %s: fertig", job_id)
     except InvalidJobError as exc:
         result = {"error": f"Ungueltiger Job: {exc}"}
         logger.warning("Job %s: ungueltig -- %s", job_id, exc)

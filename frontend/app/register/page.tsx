@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { KeyRound, Languages, Loader2, Radar, ShieldCheck, Smartphone } from "lucide-react";
 import { registerPasskey, isWebAuthnSupported } from "@/lib/webauthn-client";
@@ -30,10 +30,19 @@ async function postJson(url: string, body: unknown) {
 }
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { language, setLanguage, t } = useLanguage();
   const [step, setStep] = useState<Step>({ name: "form" });
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(searchParams.get("code") ?? "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -165,7 +174,7 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Field label="Einladungscode">
               <input
-                autoFocus
+                autoFocus={!inviteCode}
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 className="input font-mono"
@@ -174,6 +183,7 @@ export default function RegisterPage() {
             </Field>
             <Field label={t("login.username")}>
               <input
+                autoFocus={Boolean(inviteCode)}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="input"

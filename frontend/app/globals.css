@@ -97,28 +97,15 @@
   animation: styled-name-sparkle 2.2s ease-in-out infinite;
 }
 
-@keyframes styled-name-glitter {
-  0%, 100% {
-    background-position: 15% 25%, 75% 65%, 40% 85%, 0 0;
-  }
-  50% {
-    background-position: 85% 75%, 25% 35%, 80% 15%, 0 0;
-  }
-}
-
 .styled-name-glitter {
-  background-image:
-    radial-gradient(circle, #ffffff 0%, transparent 65%),
-    radial-gradient(circle, #ffffff 0%, transparent 65%),
-    radial-gradient(circle, #ffffff 0%, transparent 65%),
-    linear-gradient(var(--glitter-base, #35E0C0), var(--glitter-base, #35E0C0));
-  background-size: 10% 10%, 7% 7%, 8% 8%, 100% 100%;
-  background-repeat: no-repeat;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  background-image: url("https://r2.fakecrime.bio/assets/sparkles/white.gif");
+  background-repeat: repeat;
+  background-size: 60px 60px;
+  border-radius: 6px;
+  color: var(--glitter-base, #35E0C0);
   font-weight: 600;
-  animation: styled-name-glitter 3.5s ease-in-out infinite;
 }
 
 @keyframes styled-name-rainbow {

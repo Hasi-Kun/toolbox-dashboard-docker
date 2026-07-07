@@ -75,6 +75,8 @@ export const translations = {
 
     "tools.spf-check.name": "SPF Analyse",
     "tools.spf-check.description": "Prueft und zerlegt den SPF-Record einer Domain in seine Mechanismen.",
+    "tools.spf-ip-validator.name": "SPF IP-Pruefung",
+    "tools.spf-ip-validator.description": "Prueft, ob eine konkrete IP laut SPF-Record zum Versand berechtigt ist -- echte Auswertung mit Pass/Fail/Softfail und Schritt-fuer-Schritt-Log.",
     "tools.dkim-check.name": "DKIM Lookup",
     "tools.dkim-check.description": "Sucht DKIM-Records -- per Selector oder automatischer Fallback-Liste.",
     "tools.dkim-signature-inspector.name": "DKIM Signature Inspector",
@@ -113,6 +115,8 @@ export const translations = {
     "tools.nmap-aggressive.description": "OS-Erkennung, Versions-Erkennung, Standard-Scripts und Traceroute in einem Lauf.",
     "tools.nmap-udp.name": "UDP Scan",
     "tools.nmap-udp.description": "Scannt die haeufigsten UDP-Ports.",
+    "tools.nikto-scan.name": "Nikto Web Scanner",
+    "tools.nikto-scan.description": "Aktiver Webserver-Scan (6000+ Tests auf Fehlkonfigurationen/veraltete Software). Nur fuer Systeme mit ausdruecklicher Erlaubnis.",
 
     "tools.ssl-checker.name": "SSL Checker",
     "tools.ssl-checker.description": "Liest Zertifikat, TLS-Version und Cipher eines Servers aus und prueft die Gueltigkeit.",
@@ -248,6 +252,8 @@ export const translations = {
 
     "tools.spf-check.name": "SPF Check",
     "tools.spf-check.description": "Validates and breaks down a domain's SPF record into its mechanisms.",
+    "tools.spf-ip-validator.name": "SPF IP Validation",
+    "tools.spf-ip-validator.description": "Checks whether a specific IP is authorized by the SPF record -- real evaluation with pass/fail/softfail and a step-by-step log.",
     "tools.dkim-check.name": "DKIM Lookup",
     "tools.dkim-check.description": "Looks up DKIM records -- by selector or an automatic fallback list.",
     "tools.dkim-signature-inspector.name": "DKIM Signature Inspector",
@@ -286,6 +292,8 @@ export const translations = {
     "tools.nmap-aggressive.description": "OS detection, version detection, default scripts, and traceroute in one run.",
     "tools.nmap-udp.name": "UDP Scan",
     "tools.nmap-udp.description": "Scans the most common UDP ports.",
+    "tools.nikto-scan.name": "Nikto Web Scanner",
+    "tools.nikto-scan.description": "Active web server scan (6000+ tests for misconfigurations/outdated software). Only for systems you have explicit permission for.",
 
     "tools.ssl-checker.name": "SSL Checker",
     "tools.ssl-checker.description": "Reads a server's certificate, TLS version, and cipher, and checks validity.",

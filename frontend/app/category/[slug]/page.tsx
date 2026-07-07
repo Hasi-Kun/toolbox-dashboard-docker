@@ -16,6 +16,7 @@ type Tool = {
   name: string;
   description: string;
   is_active_scan: boolean;
+  requires_admin: boolean;
 };
 
 export default function CategoryPage() {
@@ -23,6 +24,7 @@ export default function CategoryPage() {
   const { t } = useLanguage();
   const [tools, setTools] = useState<Tool[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const category = categories.find((c) => c.slug === params.slug);
   const categoryName = category ? t(`categories.${category.slug}.name` as TranslationKey) : params.slug;
@@ -31,6 +33,11 @@ export default function CategoryPage() {
     : "Unbekannte Kategorie";
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me: { role?: string } | null) => setIsAdmin(me?.role === "admin"))
+      .catch(() => setIsAdmin(false));
+
     fetch("/api/tools")
       .then((res) => {
         if (!res.ok) throw new Error("Tools konnten nicht geladen werden");
@@ -56,19 +63,26 @@ export default function CategoryPage() {
           )}
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tools?.map((tool) => (
+            {tools?.filter((tool) => isAdmin || !tool.requires_admin).map((tool) => (
               <Link
                 key={tool.slug}
                 href={`/tools/${tool.slug}`}
                 className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="font-display text-base text-ink">{t(`tools.${tool.slug}.name` as TranslationKey)}</p>
-                  {tool.is_active_scan && (
-                    <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
-                      Scan
-                    </span>
-                  )}
+                  <div className="flex shrink-0 gap-1.5">
+                    {tool.requires_admin && (
+                      <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">
+                        Admin
+                      </span>
+                    )}
+                    {tool.is_active_scan && (
+                      <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
+                        Scan
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-1 text-sm text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
                 <p className="mt-3 font-mono text-xs text-ink-muted">{tool.slug}</p>

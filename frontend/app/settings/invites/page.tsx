@@ -66,8 +66,8 @@ export default function InvitesPage() {
   }
 
   function copyLink(invite: Invite) {
-    const url = `${window.location.origin}/register`;
-    navigator.clipboard.writeText(`${url} -- Code: ${invite.code}`);
+    const url = `${window.location.origin}/register?code=${encodeURIComponent(invite.code)}`;
+    navigator.clipboard.writeText(url);
     setCopiedId(invite.id);
     setTimeout(() => setCopiedId(null), 1500);
   }

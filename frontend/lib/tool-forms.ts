@@ -19,6 +19,11 @@ const RECORD_TYPE_OPTIONS: FieldOption[] = [
   "A", "AAAA", "MX", "TXT", "NS", "SOA", "CNAME", "SRV", "CAA",
 ].map((v) => ({ value: v, label: v }));
 
+const ALL_DNS_RECORD_TYPE_OPTIONS: FieldOption[] = [
+  "A", "AAAA", "MX", "TXT", "NS", "SOA", "CNAME", "SRV", "CAA",
+  "PTR", "DNSKEY", "DS", "NAPTR", "TLSA", "HINFO", "RP", "LOC", "SSHFP", "NSEC",
+].map((v) => ({ value: v, label: v }));
+
 /**
  * Deklarative Formular-Beschreibung pro Tool-Slug. Bewusst hier zentral
  * gepflegt statt Backend-Schema-Introspection -- fuer 27 Tools mit
@@ -30,7 +35,8 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   // --- DNS ---
   "dns-lookup": [
     { name: "domain", label: "Domain", type: "text", placeholder: "example.com" },
-    { name: "record_type", label: "Record-Typ", type: "select", options: RECORD_TYPE_OPTIONS, default: "A" },
+    { name: "record_types", label: "Record-Typen (Mehrfachauswahl)", type: "checkbox-group", options: ALL_DNS_RECORD_TYPE_OPTIONS, default: ["A", "AAAA", "MX", "TXT", "NS"] },
+    { name: "custom_nameserver", label: "Custom-Nameserver (optional, z.B. 1.1.1.1)", type: "text", placeholder: "leer = System-Resolver" },
   ],
   "dns-reverse-lookup": [
     { name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" },
@@ -42,6 +48,10 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
 
   // --- Mail ---
   "spf-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "spf-ip-validator": [
+    { name: "domain_or_email", label: "Domain oder E-Mail-Adresse", type: "text", placeholder: "example.com oder user@example.com" },
+    { name: "ip", label: "Zu pruefende IP-Adresse", type: "text", placeholder: "203.0.113.55" },
+  ],
   "dkim-check": [
     { name: "domain", label: "Domain", type: "text", placeholder: "example.com" },
     { name: "selector", label: "Selector (optional, sonst Fallback-Liste)", type: "text", placeholder: "z.B. google, default" },
@@ -87,6 +97,9 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "nmap-udp": [
     { name: "target", label: "Ziel", type: "text", placeholder: "example.com" },
     { name: "count", label: "Anzahl Ports (max. 50)", type: "number", default: 20 },
+  ],
+  "nikto-scan": [
+    { name: "target", label: "Ziel (nur Systeme, fuer die du eine Erlaubnis hast)", type: "text", placeholder: "example.com", helpText: "Aktiver Scan mit tausenden Anfragen -- kann bis zu 3 Minuten dauern. Nur fuer Administratoren." },
   ],
 
   // --- Utilities ---

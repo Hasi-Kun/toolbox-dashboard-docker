@@ -61,6 +61,19 @@ def build_udp(params: dict) -> list[str]:
     return ["nmap", "-T4", "-sU", "--top-ports", str(count), "-oX", "-", target]
 
 
+def build_nikto(params: dict) -> list[str]:
+    """Nikto-Webserver-Scan -- wie bei nmap ausschliesslich feste Flags,
+    NIE vom Nutzer frei waehlbare Kommandozeilenargumente. '-Format json'
+    + '-output -' schreiben JSON direkt nach stdout statt in eine Datei.
+    """
+    target = _require_target(params)
+    return [
+        "nikto", "-h", target, "-Format", "json", "-output", "-",
+        "-maxtime", "180s",  # harte Obergrenze, unabhaengig vom Subprocess-Timeout unten
+        "-ask", "no",  # nie interaktiv nachfragen (z.B. bei SSL-Zertifikatsfehlern)
+    ]
+
+
 TEMPLATES = {
     "quick": build_quick,
     "top-ports": build_top_ports,
@@ -68,4 +81,5 @@ TEMPLATES = {
     "os-detection": build_os_detection,
     "aggressive": build_aggressive,
     "udp": build_udp,
+    "nikto": build_nikto,
 }
