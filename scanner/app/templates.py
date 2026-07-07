@@ -61,6 +61,9 @@ def build_udp(params: dict) -> list[str]:
     return ["nmap", "-T4", "-sU", "--top-ports", str(count), "-oX", "-", target]
 
 
+NIKTO_BIN = "/opt/nikto/program/nikto.pl"
+
+
 def build_nikto(params: dict) -> list[str]:
     """Nikto-Webserver-Scan -- wie bei nmap ausschliesslich feste Flags,
     NIE vom Nutzer frei waehlbare Kommandozeilenargumente.
@@ -74,13 +77,19 @@ def build_nikto(params: dict) -> list[str]:
     (params['_output_path']), liest die Datei nach dem Lauf ein und
     loescht sie wieder -- kein dauerhafter Speicher der Scan-Ergebnisse
     auf der Platte.
+
+    Aufruf ueber den VOLLEN Pfad zum Script statt ueber einen PATH-Symlink
+    -- Nikto ist laut eigener Dokumentation als "self-contained" gedacht
+    und loest eigene Config-/Datenbank-Pfade relativ zu seinem Skript-
+    Pfad auf; ein Symlink-Aufruf koennte das (je nach Perl-FindBin-
+    Verhalten) durcheinanderbringen. Der volle, reale Pfad umgeht das.
     """
     target = _require_target(params)
     output_path = params.get("_output_path")
     if not output_path:
         raise InvalidJobError("Interner Fehler: kein Ausgabe-Pfad fuer Nikto gesetzt")
     return [
-        "nikto", "-h", target, "-Format", "json", "-output", output_path,
+        NIKTO_BIN, "-h", target, "-Format", "json", "-output", output_path,
         "-maxtime", "180s",  # harte Obergrenze, unabhaengig vom Subprocess-Timeout unten
         "-ask", "no",  # nie interaktiv nachfragen (z.B. bei SSL-Zertifikatsfehlern)
     ]

@@ -30,15 +30,18 @@ NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 200  # Nikto braucht laenger als ein nmap-Sch
 _redis = redis.from_url(REDIS_URL, decode_responses=True)
 
 
-async def run_command(args: list[str], timeout: int) -> str:
+async def run_command(args: list[str], timeout: int, cwd: str | None = None) -> str:
     """Fuehrt ein beliebiges (fest vorgegebenes) Kommando ueber argv-Liste
     aus (nie Shell), gibt stdout zurueck. Gemeinsam fuer nmap UND nikto,
     da beide gleich aufgerufen werden (nur die Argument-Liste unterscheidet
-    sich, die kommt bereits fertig validiert aus templates.py)."""
+    sich, die kommt bereits fertig validiert aus templates.py). `cwd` fuer
+    Nikto gesetzt (siehe templates.py), da es Config-/Datenbank-Dateien
+    ggf. relativ zum Arbeitsverzeichnis sucht."""
     process = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        cwd=cwd,
         env={**os.environ, "NMAP_PRIVILEGED": "1"},
     )
     try:
@@ -52,6 +55,14 @@ async def run_command(args: list[str], timeout: int) -> str:
 
     if process.returncode != 0 and not stdout_bytes:
         raise RuntimeError(stderr_bytes.decode("utf-8", errors="replace")[:500] or f"{args[0]} ist fehlgeschlagen")
+
+    if stderr_bytes:
+        # Immer loggen, auch bei Erfolg -- hilft beim Debuggen von Faellen,
+        # in denen das Tool "erfolgreich" durchlief, aber trotzdem
+        # Warnungen/Fehler auf stderr ausgegeben hat (z.B. fehlende
+        # Perl-Module bei Nikto, die nicht zwingend zu einem Exit-Code
+        # ungleich 0 fuehren).
+        logger.info("%s stderr: %s", args[0], stderr_bytes.decode("utf-8", errors="replace")[:500])
 
     return stdout_bytes.decode("utf-8", errors="replace")
 
@@ -77,11 +88,21 @@ async def handle_job(job: dict) -> None:
             os.close(fd)
 
             args = builder({**params, "_output_path": nikto_output_path})
-            await run_command(args, timeout=NIKTO_SUBPROCESS_TIMEOUT_SECONDS)
+            console_output = await run_command(args, timeout=NIKTO_SUBPROCESS_TIMEOUT_SECONDS, cwd="/opt/nikto/program")
 
             with open(nikto_output_path, encoding="utf-8", errors="replace") as f:
                 raw_output = f.read()
-            result = parse_nikto_json(raw_output)
+
+            try:
+                result = parse_nikto_json(raw_output)
+            except ValueError as exc:
+                # Diagnose-Hilfe: Niktos tatsaechliche Konsolenausgabe mit
+                # anhaengen, statt nur "kein JSON gefunden" zu melden --
+                # damit ein echtes Problem (z.B. fehlendes Perl-Modul)
+                # beim naechsten Mal direkt im Fehlertext sichtbar ist,
+                # statt erst muehsam im Container-Log gesucht werden zu muessen.
+                snippet = console_output.strip()[:300] or "(keine Konsolenausgabe erfasst)"
+                raise ValueError(f"{exc} -- Nikto-Konsolenausgabe: {snippet}") from exc
         else:
             args = builder(params)
             raw_output = await run_command(args, timeout=SUBPROCESS_TIMEOUT_SECONDS)

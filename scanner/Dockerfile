@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnet-ssleay-perl \
     libio-socket-ssl-perl \
     libwhisker2-perl \
+    libjson-pp-perl \
+    libxml-writer-perl \
     && rm -rf /var/lib/apt/lists/*
 
 # Nikto in einer festen, ueberprueften Version klonen (kein "latest" --

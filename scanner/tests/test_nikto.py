@@ -20,7 +20,7 @@ from app.nikto_parser import parse_nikto_json  # noqa: E402
 
 def test_nikto_template_builds_fixed_arguments():
     args = TEMPLATES["nikto"]({"target": "example.com", "_output_path": "/tmp/nikto_test.json"})
-    assert args[0] == "nikto"
+    assert args[0].endswith("nikto.pl")
     assert "-h" in args and "example.com" in args
     assert "-Format" in args and "json" in args
 
@@ -93,7 +93,7 @@ async def test_handle_job_writes_reads_and_cleans_up_temp_file(tmp_path, monkeyp
         ' "vulnerabilities": [{"id": "1", "method": "GET", "url": "/admin/", "msg": "Found"}]}'
     )
 
-    async def fake_run_command(args, timeout):
+    async def fake_run_command(args, timeout, cwd=None):
         output_path = args[args.index("-output") + 1]
         with open(output_path, "w") as f:
             f.write(sample_json)
@@ -123,7 +123,7 @@ async def test_handle_job_cleans_up_temp_file_even_on_failure():
     from unittest.mock import patch
     import app.worker as worker
 
-    async def failing_run_command(args, timeout):
+    async def failing_run_command(args, timeout, cwd=None):
         raise RuntimeError("Simulierter Absturz")
 
     stored = {}
@@ -139,3 +139,37 @@ async def test_handle_job_cleans_up_temp_file_even_on_failure():
     assert "error" in stored["value"]
     leftover = [f for f in os.listdir(tempfile.gettempdir()) if f.startswith("nikto_")]
     assert leftover == [], f"Verbliebene temporaere Dateien nach Fehler: {leftover}"
+
+
+@pytest.mark.asyncio
+async def test_handle_job_includes_console_output_in_error_when_json_parsing_fails():
+    """Regressionstest fuer die Diagnose-Verbesserung: wenn Nikto kein
+    gueltiges JSON liefert (z.B. wegen eines fehlenden Perl-Moduls), soll
+    die tatsaechliche Nikto-Konsolenausgabe im Fehlertext auftauchen,
+    statt nur ein nichtssagendes 'kein JSON gefunden'.
+    """
+    from unittest.mock import patch
+    import app.worker as worker
+
+    async def fake_run_command_no_json(args, timeout, cwd=None):
+        output_path = args[args.index("-output") + 1]
+        # Simuliert exakt den gemeldeten Vorfall: Datei enthaelt keinen
+        # gueltigen JSON-Inhalt (z.B. eine Perl-Fehlermeldung statt Scan-
+        # Ergebnissen), waehrend Nikto selbst eine erklaerende Meldung auf
+        # stdout ausgibt.
+        with open(output_path, "w") as f:
+            f.write("Nikto crashed unexpectedly, no valid output produced")
+        return "ERROR: Required module not found: JSON"
+
+    stored = {}
+
+    async def fake_set(key, value, ex=None):
+        stored["value"] = json.loads(value)
+
+    with patch.object(worker, "run_command", new=fake_run_command_no_json), patch.object(worker, "_redis") as mock_redis:
+        mock_redis.set = fake_set
+        job = {"job_id": "test-diag", "template": "nikto", "params": {"target": "example.com"}}
+        await worker.handle_job(job)
+
+    assert "error" in stored["value"]
+    assert "Required module not found: JSON" in stored["value"]["error"]
