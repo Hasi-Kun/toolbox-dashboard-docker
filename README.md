@@ -11,7 +11,7 @@ This project is **domain-template based** and supports automated deployment via 
 
 ---
 
-Disclaimer
+## Disclaimer
 
 This project is actively developed with the assistance of Artificial Intelligence (AI).
 
