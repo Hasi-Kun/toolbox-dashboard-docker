@@ -4,7 +4,10 @@ Eigenstaendige Tests, da der Scanner-Container eine eigene, von der
 Haupt-Backend-Suite getrennte Python-Umgebung ist.
 """
 
+import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,7 +19,7 @@ from app.nikto_parser import parse_nikto_json  # noqa: E402
 
 
 def test_nikto_template_builds_fixed_arguments():
-    args = TEMPLATES["nikto"]({"target": "example.com"})
+    args = TEMPLATES["nikto"]({"target": "example.com", "_output_path": "/tmp/nikto_test.json"})
     assert args[0] == "nikto"
     assert "-h" in args and "example.com" in args
     assert "-Format" in args and "json" in args
@@ -30,6 +33,23 @@ def test_nikto_template_rejects_invalid_target():
 def test_nikto_template_rejects_flag_injection_attempt():
     with pytest.raises(InvalidJobError):
         TEMPLATES["nikto"]({"target": "example.com --script=evil"})
+
+
+def test_nikto_template_requires_output_path():
+    """Regressionstest fuer den gemeldeten Vorfall: Nikto unterstuetzt
+    (anders als nmap) kein '-' als Stdout-Platzhalter fuer -output --
+    das fuehrte dazu, dass Niktos normale Statusmeldungen statt JSON
+    erfasst wurden. Jetzt wird ein echter Dateipfad verlangt.
+    """
+    with pytest.raises(InvalidJobError):
+        TEMPLATES["nikto"]({"target": "example.com"})  # kein _output_path gesetzt
+
+
+def test_nikto_template_uses_real_file_path_not_dash():
+    args = TEMPLATES["nikto"]({"target": "example.com", "_output_path": "/tmp/nikto_test.json"})
+    output_index = args.index("-output")
+    assert args[output_index + 1] == "/tmp/nikto_test.json"
+    assert args[output_index + 1] != "-"
 
 
 def test_nikto_json_parser_extracts_findings():
@@ -55,3 +75,67 @@ def test_nikto_json_parser_extracts_json_from_surrounding_text():
     messy = 'Some warning text\n{"host": "test.com", "vulnerabilities": []}\nTrailing text'
     result = parse_nikto_json(messy)
     assert result["host"] == "test.com"
+
+
+@pytest.mark.asyncio
+async def test_handle_job_writes_reads_and_cleans_up_temp_file(tmp_path, monkeypatch):
+    """End-to-End-Regressionstest fuer den Produktions-Vorfall: simuliert
+    einen erfolgreichen Nikto-Lauf (schreibt JSON in die uebergebene
+    Ausgabedatei) und prueft, dass das Ergebnis korrekt geparst UND die
+    temporaere Datei danach garantiert geloescht wird.
+    """
+    import json as json_module
+    from unittest.mock import patch
+    import app.worker as worker
+
+    sample_json = (
+        '{"host": "example.com", "ip": "93.184.216.34", "port": "80",'
+        ' "vulnerabilities": [{"id": "1", "method": "GET", "url": "/admin/", "msg": "Found"}]}'
+    )
+
+    async def fake_run_command(args, timeout):
+        output_path = args[args.index("-output") + 1]
+        with open(output_path, "w") as f:
+            f.write(sample_json)
+        return ""
+
+    stored = {}
+
+    async def fake_set(key, value, ex=None):
+        stored["value"] = json_module.loads(value)
+
+    with patch.object(worker, "run_command", new=fake_run_command), patch.object(worker, "_redis") as mock_redis:
+        mock_redis.set = fake_set
+        job = {"job_id": "test-e2e", "template": "nikto", "params": {"target": "example.com"}}
+        await worker.handle_job(job)
+
+    assert stored["value"]["host"] == "example.com"
+    assert stored["value"]["finding_count"] == 1
+
+    leftover = [f for f in os.listdir(tempfile.gettempdir()) if f.startswith("nikto_")]
+    assert leftover == [], f"Verbliebene temporaere Dateien: {leftover}"
+
+
+@pytest.mark.asyncio
+async def test_handle_job_cleans_up_temp_file_even_on_failure():
+    """Die temporaere Ausgabedatei darf auch bei einem Absturz waehrend
+    des Scans nicht liegen bleiben."""
+    from unittest.mock import patch
+    import app.worker as worker
+
+    async def failing_run_command(args, timeout):
+        raise RuntimeError("Simulierter Absturz")
+
+    stored = {}
+
+    async def fake_set(key, value, ex=None):
+        stored["value"] = json.loads(value)
+
+    with patch.object(worker, "run_command", new=failing_run_command), patch.object(worker, "_redis") as mock_redis:
+        mock_redis.set = fake_set
+        job = {"job_id": "test-fail", "template": "nikto", "params": {"target": "example.com"}}
+        await worker.handle_job(job)
+
+    assert "error" in stored["value"]
+    leftover = [f for f in os.listdir(tempfile.gettempdir()) if f.startswith("nikto_")]
+    assert leftover == [], f"Verbliebene temporaere Dateien nach Fehler: {leftover}"

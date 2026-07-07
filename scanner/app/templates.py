@@ -63,12 +63,24 @@ def build_udp(params: dict) -> list[str]:
 
 def build_nikto(params: dict) -> list[str]:
     """Nikto-Webserver-Scan -- wie bei nmap ausschliesslich feste Flags,
-    NIE vom Nutzer frei waehlbare Kommandozeilenargumente. '-Format json'
-    + '-output -' schreiben JSON direkt nach stdout statt in eine Datei.
+    NIE vom Nutzer frei waehlbare Kommandozeilenargumente.
+
+    WICHTIG: Anders als nmap (`-oX -` schreibt XML nach stdout) unterstuetzt
+    Nikto KEIN '-' als Stdout-Platzhalter fuer '-output' -- das fuehrte in
+    der Praxis dazu, dass Nikto stattdessen seine normalen Status-/
+    Fortschrittsmeldungen auf stdout ausgab (kein gueltiges JSON), waehrend
+    '-output -' vermutlich als woertlicher Dateiname interpretiert wurde.
+    Der Worker uebergibt hier einen echten temporaeren Dateipfad
+    (params['_output_path']), liest die Datei nach dem Lauf ein und
+    loescht sie wieder -- kein dauerhafter Speicher der Scan-Ergebnisse
+    auf der Platte.
     """
     target = _require_target(params)
+    output_path = params.get("_output_path")
+    if not output_path:
+        raise InvalidJobError("Interner Fehler: kein Ausgabe-Pfad fuer Nikto gesetzt")
     return [
-        "nikto", "-h", target, "-Format", "json", "-output", "-",
+        "nikto", "-h", target, "-Format", "json", "-output", output_path,
         "-maxtime", "180s",  # harte Obergrenze, unabhaengig vom Subprocess-Timeout unten
         "-ask", "no",  # nie interaktiv nachfragen (z.B. bei SSL-Zertifikatsfehlern)
     ]

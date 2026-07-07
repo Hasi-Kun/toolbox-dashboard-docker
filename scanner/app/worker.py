@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import tempfile
 
 import redis.asyncio as redis
 
@@ -63,17 +64,26 @@ async def handle_job(job: dict) -> None:
     logger.info("Job %s: Template=%s Ziel=%s", job_id, template_name, params.get("target"))
 
     result: dict = {}
+    nikto_output_path: str | None = None
     try:
         builder = TEMPLATES.get(template_name)
         if builder is None:
             raise InvalidJobError(f"Unbekanntes Template: {template_name}")
 
-        args = builder(params)
-
         if template_name == "nikto":
-            raw_output = await run_command(args, timeout=NIKTO_SUBPROCESS_TIMEOUT_SECONDS)
+            # Echter temporaerer Dateipfad statt '-' -- Nikto unterstuetzt
+            # (anders als nmap) kein Stdout-Streaming fuer -output.
+            fd, nikto_output_path = tempfile.mkstemp(suffix=".json", prefix="nikto_")
+            os.close(fd)
+
+            args = builder({**params, "_output_path": nikto_output_path})
+            await run_command(args, timeout=NIKTO_SUBPROCESS_TIMEOUT_SECONDS)
+
+            with open(nikto_output_path, encoding="utf-8", errors="replace") as f:
+                raw_output = f.read()
             result = parse_nikto_json(raw_output)
         else:
+            args = builder(params)
             raw_output = await run_command(args, timeout=SUBPROCESS_TIMEOUT_SECONDS)
             hosts = parse_nmap_xml(raw_output)
             result = {"hosts": hosts}
@@ -88,6 +98,14 @@ async def handle_job(job: dict) -> None:
     except Exception as exc:  # noqa: BLE001 -- Ergebnis soll immer zurueckgeschrieben werden
         result = {"error": f"Scan fehlgeschlagen: {exc}"}
         logger.exception("Job %s: unerwarteter Fehler", job_id)
+    finally:
+        # Temporaere Nikto-Ausgabedatei IMMER loeschen, unabhaengig vom
+        # Ergebnis -- kein dauerhafter Speicher von Scan-Rohdaten.
+        if nikto_output_path is not None:
+            try:
+                os.unlink(nikto_output_path)
+            except OSError:
+                pass
 
     await _redis.set(f"scanner:result:{job_id}", json.dumps(result), ex=RESULT_TTL_SECONDS)
 

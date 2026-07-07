@@ -1,6 +1,19 @@
 import { Check, X } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
 
+// Farbcodierung fuer SPF-Validierungsergebnisse (spf-ip-validator-Tool) --
+// deutlich sichtbarer Status statt reinem Text, analog zu Pass/Fail in
+// gaengigen SPF-Checker-Tools.
+const SPF_RESULT_STYLES: Record<string, { label: string; className: string }> = {
+  pass: { label: "PASS", className: "bg-signal/15 text-signal border border-signal/40" },
+  fail: { label: "FAIL (Hard Fail)", className: "bg-critical/15 text-critical border border-critical/40" },
+  softfail: { label: "SOFTFAIL", className: "bg-warn/15 text-warn border border-warn/40" },
+  neutral: { label: "NEUTRAL", className: "bg-base-border text-ink-muted border border-base-border" },
+  none: { label: "NONE (kein SPF-Record)", className: "bg-base-border text-ink-muted border border-base-border" },
+  permerror: { label: "PERMERROR", className: "bg-critical/15 text-critical border border-critical/40" },
+  temperror: { label: "TEMPERROR", className: "bg-warn/15 text-warn border border-warn/40" },
+};
+
 /**
  * Rendert beliebige JSON-Ergebnisse lesbar, ohne dass jedes der Tools eine
  * eigene Ergebnis-Ansicht braucht.
@@ -131,6 +144,34 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
                   loading="lazy"
                   title="Standort-Karte"
                 />
+              </div>
+            );
+          }
+          if (key === "result" && typeof val === "string" && SPF_RESULT_STYLES[val]) {
+            const style = SPF_RESULT_STYLES[val];
+            return (
+              <div key={key} className="pt-0.5">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.className}`}>
+                  {style.label}
+                </span>
+              </div>
+            );
+          }
+          if (key === "trace" && Array.isArray(val)) {
+            const traceText = (val as string[]).join("\n");
+            return (
+              <div key={key} className="group pt-1">
+                <div className="mb-1 flex justify-end">
+                  <CopyButton text={traceText} className="opacity-100" />
+                </div>
+                <ol className="max-h-96 space-y-1 overflow-y-auto rounded-lg border border-base-border bg-base p-3 font-mono text-xs leading-relaxed text-ink-muted">
+                  {(val as string[]).map((line, i) => (
+                    <li key={i}>
+                      <span className="mr-2 text-ink-muted/60">{i + 1}.</span>
+                      {line}
+                    </li>
+                  ))}
+                </ol>
               </div>
             );
           }

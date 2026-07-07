@@ -17,6 +17,8 @@ export interface CliWindowState {
   history: string[];
 }
 
+const BUILTIN_COMMANDS = ["help", "list", "clear"];
+
 export function CliWindow({
   win,
   tools,
@@ -40,6 +42,7 @@ export function CliWindow({
 }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const tabCompletionRef = useRef<{ prefix: string; matches: string[]; index: number } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const resizeRef = useRef<{ startX: number; startY: number; originWidth: number; originHeight: number } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -89,6 +92,47 @@ export function CliWindow({
     dragRef.current = null;
     window.removeEventListener("mousemove", handleDragMove);
     window.removeEventListener("mouseup", handleDragEnd);
+  }
+
+  function handleTabComplete() {
+    // Nur das ERSTE Wort (den Befehlsnamen) vervollstaendigen -- Argumente
+    // danach bleiben unangetastet, da deren gueltige Werte (Domains, IPs
+    // etc) nicht sinnvoll vorschlagbar sind.
+    const firstSpace = input.indexOf(" ");
+    const hasArgs = firstSpace !== -1;
+    const currentPrefix = hasArgs ? input.slice(0, firstSpace) : input;
+    const rest = hasArgs ? input.slice(firstSpace) : "";
+
+    const allCommands = [...BUILTIN_COMMANDS, ...tools.map((t) => t.slug)].sort();
+
+    const cached = tabCompletionRef.current;
+    const isSameCycle = cached && cached.prefix === currentPrefix.toLowerCase() && cached.matches.length > 0;
+
+    if (isSameCycle && cached) {
+      // Erneutes Tab auf denselben Praefix -- zum naechsten Treffer weiterschalten.
+      const nextIndex = (cached.index + 1) % cached.matches.length;
+      tabCompletionRef.current = { ...cached, index: nextIndex };
+      setInput(cached.matches[nextIndex] + rest);
+      return;
+    }
+
+    const prefixLower = currentPrefix.toLowerCase();
+    const matches = prefixLower ? allCommands.filter((c) => c.startsWith(prefixLower)) : [];
+    if (matches.length === 0) return;
+
+    tabCompletionRef.current = { prefix: prefixLower, matches, index: 0 };
+    setInput(matches[0] + rest);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      handleTabComplete();
+    } else if (e.key !== "Shift") {
+      // Jede andere Taste beendet den aktuellen Vervollstaendigungs-Zyklus,
+      // damit ein neuer Tab-Druck spaeter wieder frisch von vorne matcht.
+      tabCompletionRef.current = null;
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -162,6 +206,7 @@ export function CliWindow({
           autoFocus
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="flex-1 bg-transparent font-mono text-xs text-ink outline-none"
           placeholder="ping example.com"
         />

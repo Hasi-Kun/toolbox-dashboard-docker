@@ -55,6 +55,7 @@ export async function executeCommand(
         "Beispiel: dns-lookup example.com MX",
         "Werte mit Leerzeichen in \"Anfuehrungszeichen\" setzen.",
         "'list' zeigt alle Slugs und ihre Parameter in der richtigen Reihenfolge.",
+        "Tab-Taste vervollstaendigt Befehlsnamen automatisch (mehrfach druecken zum Durchschalten).",
       ],
     };
   }
