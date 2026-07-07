@@ -21,11 +21,16 @@ from app.models.user import (
 router = APIRouter(prefix="/feature-requests", tags=["feature-requests"])
 
 ALLOWED_STATUSES = {s.value for s in FeatureRequestStatus}
+# Vorgefertigte, feste Tag-Auswahl -- bewusst keine Freitext-Tags, damit
+# die Filterung auf der Liste immer eine ueberschaubare, konsistente
+# Menge an Werten hat.
+ALLOWED_TAGS = ["tools", "dashboard", "ui", "security", "performance", "other"]
 
 
 class CreateRequestPayload(BaseModel):
     title: str
     description: str
+    tags: list[str] = []
 
     @field_validator("title")
     @classmethod
@@ -42,6 +47,17 @@ class CreateRequestPayload(BaseModel):
         if not v or len(v) > 3000:
             raise ValueError("Beschreibung muss 1-3000 Zeichen haben")
         return v
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        v = [t.strip().lower() for t in v if t.strip()]
+        unknown = set(v) - set(ALLOWED_TAGS)
+        if unknown:
+            raise ValueError(f"Unbekannte Tags: {sorted(unknown)}, erlaubt: {ALLOWED_TAGS}")
+        if len(v) > 5:
+            raise ValueError("Maximal 5 Tags pro Vorschlag")
+        return sorted(set(v))
 
 
 class CommentPayload(BaseModel):
@@ -96,6 +112,7 @@ class RequestSummaryOut(BaseModel):
     display_name_style: str = "default"
     display_name_color: str = "#35E0C0"
     display_name_gradient_color: str = "#F5C518"
+    tags: list[str] = []
 
 
 class CommentOut(BaseModel):
@@ -162,17 +179,51 @@ def _summary(db: Session, fr: FeatureRequest, user_id: int) -> RequestSummaryOut
         created_at=fr.created_at.isoformat(), score=_score(db, fr.id),
         upvotes=_upvotes(db, fr.id), downvotes=_downvotes(db, fr.id),
         comment_count=len(fr.comments), user_vote=_user_vote(db, fr.id, user_id),
+        tags=[t for t in fr.tags.split(",") if t],
         **_author_fields(author),
     )
 
 
-@router.get("", response_model=list[RequestSummaryOut])
-async def list_requests(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[RequestSummaryOut]:
+class PaginatedRequestsOut(BaseModel):
+    items: list[RequestSummaryOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+@router.get("", response_model=PaginatedRequestsOut)
+async def list_requests(
+    search: str | None = None,
+    tag: str | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PaginatedRequestsOut:
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+
     requests = db.query(FeatureRequest).all()
     summaries = [_summary(db, r, user.id) for r in requests]
+
+    if search:
+        needle = search.strip().lower()
+        summaries = [s for s in summaries if needle in s.title.lower() or needle in s.description.lower()]
+    if tag:
+        summaries = [s for s in summaries if tag.lower() in s.tags]
+
+    # Hoechster Score zuerst, bei Gleichstand neueste zuerst
     summaries.sort(key=lambda s: s.created_at, reverse=True)
     summaries.sort(key=lambda s: s.score, reverse=True)
-    return summaries
+
+    total = len(summaries)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+    page_items = summaries[start : start + page_size]
+
+    return PaginatedRequestsOut(items=page_items, total=total, page=page, page_size=page_size, total_pages=total_pages)
 
 
 @router.post("", response_model=RequestSummaryOut)
@@ -181,11 +232,19 @@ async def create_request(
 ) -> RequestSummaryOut:
     await enforce_rate_limit(request, bucket="feature-request-create", limit=10)
 
-    fr = FeatureRequest(user_id=user.id, username=user.username, title=payload.title, description=payload.description)
+    fr = FeatureRequest(
+        user_id=user.id, username=user.username, title=payload.title, description=payload.description,
+        tags=",".join(payload.tags),
+    )
     db.add(fr)
     db.commit()
     db.refresh(fr)
     return _summary(db, fr, user.id)
+
+
+@router.get("/tags")
+async def list_available_tags(_user: User = Depends(get_current_user)) -> list[str]:
+    return ALLOWED_TAGS
 
 
 @router.get("/export.csv")

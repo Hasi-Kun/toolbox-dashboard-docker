@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowBigDown, ArrowBigUp, Download, MessageCircle, Plus } from "lucide-react";
+import { ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight, Download, MessageCircle, Plus, Search } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { StyledUsername } from "@/components/styled-username";
@@ -25,6 +25,15 @@ type FeatureRequestSummary = {
   display_name_style: string;
   display_name_color: string;
   display_name_gradient_color: string;
+  tags: string[];
+};
+
+type PaginatedResponse = {
+  items: FeatureRequestSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 };
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -34,42 +43,71 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   rejected: { label: "Abgelehnt", className: "bg-critical/10 text-critical" },
 };
 
+const TAG_LABELS: Record<string, string> = {
+  tools: "Tools",
+  dashboard: "Dashboard",
+  ui: "UI",
+  security: "Sicherheit",
+  performance: "Performance",
+  other: "Sonstiges",
+};
+
 export default function FeatureRequestsPage() {
-  const [requests, setRequests] = useState<FeatureRequestSummary[] | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [data, setData] = useState<PaginatedResponse | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [newTags, setNewTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const availableTags = Object.keys(TAG_LABELS);
+
   function load() {
-    fetch("/api/feature-requests")
-      .then((res) => (res.ok ? res.json() : []))
-      .then(setRequests)
-      .catch(() => setRequests([]));
+    const params = new URLSearchParams({ page: String(page), page_size: "25" });
+    if (search) params.set("search", search);
+    if (activeTag) params.set("tag", activeTag);
+    fetch(`/api/feature-requests?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setData)
+      .catch(() => setData(null));
   }
 
-  useEffect(load, []);
+  useEffect(load, [search, activeTag, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, activeTag]);
 
   async function handleVote(id: number, direction: "up" | "down") {
-    setRequests((prev) =>
-      prev
-        ? prev.map((r) => {
-            if (r.id !== id) return r;
-            const newValue = direction === "up" ? 1 : -1;
-            const wasSame = r.user_vote === newValue;
-            const nextVote = wasSame ? 0 : newValue;
-            return { ...r, user_vote: nextVote, score: r.score - r.user_vote + nextVote };
-          })
-        : prev
-    );
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((r) => {
+          if (r.id !== id) return r;
+          const newValue = direction === "up" ? 1 : -1;
+          const wasSame = r.user_vote === newValue;
+          const nextVote = wasSame ? 0 : newValue;
+          return { ...r, user_vote: nextVote, score: r.score - r.user_vote + nextVote };
+        }),
+      };
+    });
     await fetch(`/api/feature-requests/${id}/vote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ direction }),
     });
     load();
+  }
+
+  function toggleNewTag(tag: string) {
+    setNewTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,12 +118,13 @@ export default function FeatureRequestsPage() {
       const res = await fetch("/api/feature-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description }),
+        body: JSON.stringify({ title, description, tags: newTags }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail ?? "Fehler beim Erstellen");
       setTitle("");
       setDescription("");
+      setNewTags([]);
       setShowForm(false);
       load();
     } catch (err) {
@@ -135,18 +174,73 @@ export default function FeatureRequestsPage() {
                   className="input"
                 />
               </label>
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Tags (optional, max. 5)</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleNewTag(tag)}
+                      className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+                        newTags.includes(tag) ? "bg-signal/15 text-signal border border-signal/40" : "bg-base-border text-ink-muted"
+                      }`}
+                    >
+                      {TAG_LABELS[tag]}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button type="submit" disabled={submitting} className="submit-button w-auto px-4">
                 Einreichen
               </button>
             </form>
           )}
 
-          <div className="mt-6 space-y-3">
-            {requests === null && <p className="text-sm text-ink-muted">...</p>}
-            {requests?.length === 0 && <p className="text-sm text-ink-muted">Noch keine Feature-Requests.</p>}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput);
+              }}
+              className="relative flex-1"
+            >
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Suchen..."
+                className="input pl-9"
+              />
+            </form>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveTag(null)}
+                className={`rounded-full px-2.5 py-1 text-xs ${!activeTag ? "bg-signal/15 text-signal border border-signal/40" : "bg-base-border text-ink-muted"}`}
+              >
+                Alle
+              </button>
+              {availableTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setActiveTag(tag === activeTag ? null : tag)}
+                  className={`rounded-full px-2.5 py-1 text-xs ${activeTag === tag ? "bg-signal/15 text-signal border border-signal/40" : "bg-base-border text-ink-muted"}`}
+                >
+                  {TAG_LABELS[tag]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {data === null && <p className="text-sm text-ink-muted">...</p>}
+            {data?.items.length === 0 && <p className="text-sm text-ink-muted">Keine Feature-Requests gefunden.</p>}
             {(() => {
-              const active = requests?.filter((r) => r.status !== "done" && r.status !== "rejected") ?? [];
-              const archived = requests?.filter((r) => r.status === "done" || r.status === "rejected") ?? [];
+              const items = data?.items ?? [];
+              const active = items.filter((r) => r.status !== "done" && r.status !== "rejected");
+              const archived = items.filter((r) => r.status === "done" || r.status === "rejected");
               const visible = showArchived ? [...active, ...archived] : active;
 
               return (
@@ -180,11 +274,16 @@ export default function FeatureRequestsPage() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Link href={`/feature-requests/${r.id}`} className="font-medium text-ink hover:text-signal">
                               {r.title}
                             </Link>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] ${status.className}`}>{status.label}</span>
+                            {r.tags.map((tag) => (
+                              <span key={tag} className="rounded-full bg-base-border px-2 py-0.5 text-[10px] text-ink-muted">
+                                {TAG_LABELS[tag] ?? tag}
+                              </span>
+                            ))}
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{r.description}</p>
                           <div className="mt-2 flex items-center gap-3 text-xs text-ink-muted">
@@ -226,6 +325,30 @@ export default function FeatureRequestsPage() {
               );
             })()}
           </div>
+
+          {data && data.total_pages > 1 && (
+            <div className="mt-4 flex items-center justify-between text-sm text-ink-muted">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={data.page <= 1}
+                className="flex items-center gap-1 rounded-lg border border-base-border px-3 py-1.5 disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" /> Zurueck
+              </button>
+              <span>
+                Seite {data.page} von {data.total_pages} ({data.total} gesamt)
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
+                disabled={data.page >= data.total_pages}
+                className="flex items-center gap-1 rounded-lg border border-base-border px-3 py-1.5 disabled:opacity-40"
+              >
+                Weiter <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </div>

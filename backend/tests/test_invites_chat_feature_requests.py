@@ -260,7 +260,7 @@ def test_feature_request_sorted_by_votes(client):
 
     client.post(f"/api/v1/feature-requests/{id2}/vote", json={"direction": "up"})
 
-    listing = client.get("/api/v1/feature-requests").json()
+    listing = client.get("/api/v1/feature-requests").json()["items"]
     assert listing[0]["title"] == "Viele Stimmen"
 
 

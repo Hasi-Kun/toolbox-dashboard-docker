@@ -11,7 +11,7 @@ const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://toolbox-backend:
  *
  * Damit bleibt das Backend intern (nur im toolbox-internal-Netzwerk
  * erreichbar), aber das Session-Cookie funktioniert trotzdem same-origin
- * unter {{TOOLBOX_DOMAIN}}, weil der Browser nur je mit dem Frontend
+ * unter toolbox.hasikun.cc, weil der Browser nur je mit dem Frontend
  * spricht.
  */
 export async function proxyToBackend(
@@ -27,9 +27,15 @@ export async function proxyToBackend(
     body = await request.text();
   }
 
+  // Query-String der urspruenglichen Anfrage 1:1 weiterreichen (z.B.
+  // ?search=...&page=2) -- ohne das wuerden alle Query-Parameter still
+  // verschluckt, egal was der Aufrufer als backendPath uebergibt.
+  const queryString = request.nextUrl.search;
+  const targetUrl = `${BACKEND_URL}${backendPath}${queryString}`;
+
   let backendResponse: Response;
   try {
-    backendResponse = await fetch(`${BACKEND_URL}${backendPath}`, {
+    backendResponse = await fetch(targetUrl, {
       method,
       headers: {
         "Content-Type": "application/json",

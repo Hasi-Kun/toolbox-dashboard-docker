@@ -190,6 +190,10 @@ class FeatureRequest(Base):
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(String(3000), nullable=False)
     status: Mapped[str] = mapped_column(String(16), default=FeatureRequestStatus.OPEN.value, nullable=False)
+    # Kommagetrennte, vorgefertigte Tags (z.B. "tools,dashboard") --
+    # bewusst kein eigenes Tags-Table/Many-to-Many fuer diesen ueberschaubaren,
+    # festen Satz an Kategorien -- einfacher zu pflegen fuer den Scope hier.
+    tags: Mapped[str] = mapped_column(String(200), default="", server_default=text("''"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
 
     votes: Mapped[list["FeatureRequestVote"]] = relationship(back_populates="request", cascade="all, delete-orphan")

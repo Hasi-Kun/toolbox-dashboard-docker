@@ -177,7 +177,7 @@ def test_feature_request_includes_author_display_fields(client):
     detail = client.get(f"/api/v1/feature-requests/{req_id}").json()
     assert detail["comments"][0]["display_name_style"] == "rainbow"
 
-    listing = client.get("/api/v1/feature-requests").json()
+    listing = client.get("/api/v1/feature-requests").json()["items"]
     assert listing[0]["display_name_style"] == "rainbow"
 
 

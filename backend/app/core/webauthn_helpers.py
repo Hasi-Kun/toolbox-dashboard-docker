@@ -2,7 +2,7 @@
 und die RP-Konfiguration (Domain/Origin) an einer Stelle lebt.
 
 Wichtig: RP-ID und Origin muessen exakt zur oeffentlichen Domain passen
-(https://{{TOOLBOX_DOMAIN}}), sonst lehnt der Browser die Registrierung/
+(https://toolbox.hasikun.cc), sonst lehnt der Browser die Registrierung/
 Verifikation ab. Passkeys funktionieren grundsaetzlich nur ueber HTTPS
 (oder localhost fuer lokale Entwicklung).
 """

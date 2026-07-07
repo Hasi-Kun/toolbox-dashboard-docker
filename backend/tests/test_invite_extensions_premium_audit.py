@@ -44,7 +44,7 @@ def test_failed_login_creates_audit_entry(client):
     client.post("/api/v1/auth/login", json={"username": "admin", "password": "falsches-passwort"})
     _login_with_totp_setup(client, "admin", password)
 
-    entries = client.get("/api/v1/system/audit-log").json()
+    entries = client.get("/api/v1/system/audit-log").json()["items"]
     failed = [e for e in entries if e["event_type"] == "login_password" and not e["success"]]
     assert len(failed) >= 1
     assert failed[0]["username"] == "admin"
@@ -54,7 +54,7 @@ def test_successful_login_creates_audit_entry(client):
     password = _create_admin()
     _login_with_totp_setup(client, "admin", password)
 
-    entries = client.get("/api/v1/system/audit-log").json()
+    entries = client.get("/api/v1/system/audit-log").json()["items"]
     success = [e for e in entries if e["event_type"] == "login_password" and e["success"]]
     assert len(success) >= 1
 
@@ -75,7 +75,7 @@ def test_admin_user_update_creates_audit_entry(client):
     bob = next(u for u in users if u["username"] == "bob")
     client.patch(f"/api/v1/users/{bob['id']}", json={"is_premium": True})
 
-    entries = client.get("/api/v1/system/audit-log").json()
+    entries = client.get("/api/v1/system/audit-log").json()["items"]
     updates = [e for e in entries if e["event_type"] == "admin_update_user"]
     assert len(updates) >= 1
     assert "bob" in updates[0]["detail"]

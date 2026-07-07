@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnet-ssleay-perl \
     libio-socket-ssl-perl \
     libwhisker2-perl \
+    libjson-perl \
     libjson-pp-perl \
     libxml-writer-perl \
     && rm -rf /var/lib/apt/lists/*

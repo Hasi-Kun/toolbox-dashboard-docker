@@ -99,16 +99,56 @@ class AuditLogOut(BaseModel):
     created_at: str
 
 
-@router.get("/audit-log", response_model=list[AuditLogOut])
+class PaginatedAuditLogOut(BaseModel):
+    items: list[AuditLogOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+@router.get("/audit-log", response_model=PaginatedAuditLogOut)
 async def get_audit_log(
-    limit: int = 100, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
-) -> list[AuditLogOut]:
-    limit = max(1, min(limit, 500))
-    entries = db.query(AuditLogEntry).order_by(AuditLogEntry.created_at.desc()).limit(limit).all()
-    return [
+    search: str | None = None,
+    event_type: str | None = None,
+    page: int = 1,
+    page_size: int = 100,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+) -> PaginatedAuditLogOut:
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+
+    query = db.query(AuditLogEntry)
+    if event_type:
+        query = query.filter(AuditLogEntry.event_type == event_type)
+    if search:
+        needle = f"%{search.strip()}%"
+        query = query.filter(
+            (AuditLogEntry.username.ilike(needle)) | (AuditLogEntry.detail.ilike(needle))
+        )
+
+    total = query.count()
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+
+    entries = (
+        query.order_by(AuditLogEntry.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [
         AuditLogOut(
             id=e.id, event_type=e.event_type, username=e.username, ip_address=e.ip_address,
             success=e.success, detail=e.detail, created_at=e.created_at.isoformat(),
         )
         for e in entries
     ]
+    return PaginatedAuditLogOut(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
+
+
+@router.get("/audit-log/event-types")
+async def list_audit_event_types(db: Session = Depends(get_db), _admin: User = Depends(require_admin)) -> list[str]:
+    rows = db.query(AuditLogEntry.event_type).distinct().all()
+    return sorted({r[0] for r in rows})
