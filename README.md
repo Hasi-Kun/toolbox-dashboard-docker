@@ -1,8 +1,25 @@
 # Toolbox Dashboard
 
-Self-hosted modular dashboard application (Next.js + Docker).
+Self-hosted modular dashboard application.
 
 This project is **domain-template based** and supports automated deployment via install script.
+
+<img width="1920" height="948" alt="grafik" src="https://github.com/user-attachments/assets/9b8e9284-53d9-4c43-981c-4267b8977980" />
+
+<img width="1920" height="949" alt="grafik" src="https://github.com/user-attachments/assets/073f86e6-7100-4397-b02d-8ea2446911ac" />
+
+
+---
+
+## Disclaimer
+
+This project is actively developed with the assistance of Artificial Intelligence (AI).
+
+AI tools are used to support tasks such as software development, documentation, code generation, refactoring, testing, and general development workflows.
+
+While every effort is made to ensure correctness and quality, users should independently review the code and configuration before using this project in production environments.
+
+Feedback, bug reports, and contributions are always welcome.
 
 ---
 
@@ -147,3 +164,4 @@ docker network create webnet
 Do not deploy directly from repository without running the installer.
 
 All domain values are placeholders and must be replaced during setup.
+
