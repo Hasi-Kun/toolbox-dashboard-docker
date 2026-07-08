@@ -6,17 +6,11 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/animated-background";
 import { useIsAdmin, AdminOnlyNotice } from "@/components/use-is-admin";
-
-const STYLE_OPTIONS: { value: BackgroundStyle; label: string; description: string }[] = [
-  { value: "none", label: "Kein Hintergrund", description: "Einfarbig, ohne Effekt." },
-  { value: "dots", label: "Connecting Dots", description: "Animiertes Partikel-Netzwerk, reagiert auf die Maus." },
-  { value: "gradient", label: "Gradient Pulse", description: "Ruhig pulsierender Farbverlauf, Farbe frei waehlbar." },
-  { value: "starfield", label: "Sternenhimmel", description: "Schwarzer Hintergrund, langsam funkelnde Sterne." },
-  { value: "custom", label: "Eigenes Bild", description: "Eigene Hintergrundbild-URL." },
-];
+import { useLanguage } from "@/components/language-provider";
 
 export default function AppearanceSettingsPage() {
   const { isAdmin, loaded: adminLoaded } = useIsAdmin();
+  const { t } = useLanguage();
   const [style, setStyle] = useState<BackgroundStyle>("dots");
   const [customUrl, setCustomUrl] = useState("");
   const [speed, setSpeed] = useState(1);
@@ -28,6 +22,14 @@ export default function AppearanceSettingsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const STYLE_OPTIONS: { value: BackgroundStyle; label: string; description: string }[] = [
+    { value: "none", label: t("appearance.style_none_label"), description: t("appearance.style_none_desc") },
+    { value: "dots", label: t("appearance.style_dots_label"), description: t("appearance.style_dots_desc") },
+    { value: "gradient", label: t("appearance.style_gradient_label"), description: t("appearance.style_gradient_desc") },
+    { value: "starfield", label: t("appearance.style_starfield_label"), description: t("appearance.style_starfield_desc") },
+    { value: "custom", label: t("appearance.style_custom_label"), description: t("appearance.style_custom_desc") },
+  ];
 
   useEffect(() => {
     fetch("/api/appearance")
@@ -41,9 +43,9 @@ export default function AppearanceSettingsPage() {
         setFormOpacity(data.form_opacity_percent ?? 90);
         setFormBlur(data.form_blur_px ?? 4);
       })
-      .catch(() => setError("Einstellungen konnten nicht geladen werden."))
+      .catch(() => setError(t("appearance.load_error")))
       .finally(() => setLoaded(true));
-  }, []);
+  }, [t]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -66,7 +68,7 @@ export default function AppearanceSettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
-      setNotice("Login-Hintergrund aktualisiert.");
+      setNotice(t("appearance.saved_notice"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
     } finally {
@@ -80,11 +82,8 @@ export default function AppearanceSettingsPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">Erscheinungsbild</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Hintergrund der Login-Seite -- gilt fuer die gesamte Instanz (alle Benutzer sehen denselben
-            Hintergrund, solange sie nicht eingeloggt sind).
-          </p>
+          <h1 className="font-display text-2xl text-ink">{t("appearance.title")}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{t("appearance.subtitle")}</p>
 
           {adminLoaded && !isAdmin && <AdminOnlyNotice />}
 
@@ -128,7 +127,7 @@ export default function AppearanceSettingsPage() {
 
               {style === "custom" && (
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-ink-muted">Bild-URL</span>
+                  <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("appearance.image_url_label")}</span>
                   <input
                     type="text"
                     value={customUrl}
@@ -142,7 +141,7 @@ export default function AppearanceSettingsPage() {
               {(style === "dots" || style === "gradient" || style === "starfield") && (
                 <label className="block">
                   <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
-                    <span>Geschwindigkeit</span>
+                    <span>{t("appearance.speed_label")}</span>
                     <span className="font-mono text-signal">{speed.toFixed(2)}x</span>
                   </span>
                   <input
@@ -159,7 +158,7 @@ export default function AppearanceSettingsPage() {
 
               {style === "gradient" && (
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-ink-muted">Gradient-Farbe</span>
+                  <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("appearance.gradient_color_label")}</span>
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
@@ -187,17 +186,17 @@ export default function AppearanceSettingsPage() {
                     className="h-4 w-4 rounded border-base-border"
                   />
                   <span className="text-sm text-ink-muted">
-                    Mausinteraktion (Partikel reagieren auf Mausbewegung)
+                    {t("appearance.mouse_interaction_label")}
                   </span>
                 </label>
               )}
 
               <div className="border-t border-base-border pt-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Login-Formular</p>
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-muted">{t("appearance.login_form_heading")}</p>
 
                 <label className="block">
                   <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
-                    <span>Transparenz</span>
+                    <span>{t("appearance.transparency_label")}</span>
                     <span className="font-mono text-signal">{formOpacity}%</span>
                   </span>
                   <input
@@ -208,12 +207,12 @@ export default function AppearanceSettingsPage() {
                     onChange={(e) => setFormOpacity(Number(e.target.value))}
                     className="w-full accent-signal"
                   />
-                  <span className="text-xs text-ink-muted">0% = komplett transparent, 100% = undurchsichtig</span>
+                  <span className="text-xs text-ink-muted">{t("appearance.transparency_note")}</span>
                 </label>
 
                 <label className="mt-3 block">
                   <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
-                    <span>Weichzeichnung (Blur)</span>
+                    <span>{t("appearance.blur_label")}</span>
                     <span className="font-mono text-signal">{formBlur}px</span>
                   </span>
                   <input
@@ -229,14 +228,14 @@ export default function AppearanceSettingsPage() {
 
               <button type="submit" disabled={saving} className="submit-button w-auto px-4">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Speichern
+                {t("common.save")}
               </button>
             </form>
           )}
 
           <div className="relative mt-6 h-64 overflow-hidden rounded-xl border border-base-border">
             <p className="absolute left-3 top-3 z-10 text-xs text-ink-muted">
-              Vorschau {style === "dots" && interactiveDots ? "(Maus bewegen zum Testen)" : ""}
+              {t("appearance.preview_label")} {style === "dots" && interactiveDots ? t("appearance.preview_mouse_hint") : ""}
             </p>
             <AnimatedBackground
               style={style}

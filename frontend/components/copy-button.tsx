@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { useLanguage } from "@/components/language-provider";
 
 export function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   async function handleCopy(e: React.MouseEvent) {
@@ -22,7 +24,7 @@ export function CopyButton({ text, className = "" }: { text: string; className?:
     <button
       type="button"
       onClick={handleCopy}
-      title={copied ? "Kopiert!" : "Kopieren"}
+      title={copied ? t("common.copied") : t("common.copy")}
       className={`inline-flex shrink-0 items-center justify-center rounded p-0.5 text-ink-muted opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 ${className}`}
     >
       {copied ? <Check className="h-3 w-3 text-signal" /> : <Copy className="h-3 w-3" />}

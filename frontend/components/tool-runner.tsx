@@ -5,6 +5,7 @@ import { Copy, Loader2, Play } from "lucide-react";
 import { JsonResult } from "@/components/json-result";
 import { CopyButton } from "@/components/copy-button";
 import type { FieldSpec } from "@/lib/tool-forms";
+import { useLanguage } from "@/components/language-provider";
 
 type FormValue = string | number | boolean | string[];
 
@@ -75,6 +76,7 @@ function buildPayload(fields: FieldSpec[], values: Record<string, FormValue>): R
 }
 
 export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[] }) {
+  const { t } = useLanguage();
   const [values, setValues] = useState<Record<string, FormValue>>(() => initialValues(fields));
   const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[]
 
         <button type="submit" disabled={loading} className="submit-button w-auto px-5">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {loading ? "Laeuft..." : "Ausfuehren"}
+          {loading ? t("tool_runner.running") : t("tool_runner.run_button")}
         </button>
       </form>
 
@@ -131,13 +133,13 @@ export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[]
       {result !== null && (
         <div className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display text-sm text-ink-muted">Ergebnis</h3>
+            <h3 className="font-display text-sm text-ink-muted">{t("tool_runner.result_heading")}</h3>
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2)).catch(() => {})}
               className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-1 text-xs text-ink-muted hover:text-ink"
             >
-              <Copy className="h-3.5 w-3.5" /> Alles kopieren
+              <Copy className="h-3.5 w-3.5" /> {t("tool_runner.copy_all")}
             </button>
           </div>
           <JsonResult data={result} />

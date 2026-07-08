@@ -4,14 +4,15 @@ import { useRef, useState } from "react";
 import { ClipboardPaste, FileUp, Loader2, ShieldCheck } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-
-const MODES: { value: string; label: string; hint: string }[] = [
-  { value: "x509", label: "X.509-Zertifikat", hint: ".pem/.crt/.cer/.der -- ein einzelnes Zertifikat" },
-  { value: "pkcs7", label: "PKCS#7 / S-MIME (.p7s)", hint: "Signatur-Block aus einer signierten E-Mail" },
-  { value: "csr", label: "Certificate Signing Request", hint: ".csr -- ein Zertifikatsantrag" },
-];
+import { useLanguage } from "@/components/language-provider";
 
 export default function OpensslFileInspectorPage() {
+  const { t } = useLanguage();
+  const MODES: { value: string; label: string; hint: string }[] = [
+    { value: "x509", label: t("openssl.mode_x509_label"), hint: t("openssl.mode_x509_hint") },
+    { value: "pkcs7", label: t("openssl.mode_pkcs7_label"), hint: t("openssl.mode_pkcs7_hint") },
+    { value: "csr", label: t("openssl.mode_csr_label"), hint: t("openssl.mode_csr_hint") },
+  ];
   const [mode, setMode] = useState("pkcs7");
   const [inputMode, setInputMode] = useState<"file" | "paste">("file");
   const [file, setFile] = useState<File | null>(null);
@@ -38,7 +39,7 @@ export default function OpensslFileInspectorPage() {
       const data = await res.json();
       setResult(data);
     } catch {
-      setResult({ success: false, output: null, error: "Anfrage fehlgeschlagen" });
+      setResult({ success: false, output: null, error: t("openssl.request_failed") });
     } finally {
       setLoading(false);
     }
@@ -60,10 +61,9 @@ export default function OpensslFileInspectorPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">OpenSSL Datei-Inspektor</h1>
+          <h1 className="font-display text-2xl text-ink">{t("openssl.title")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Datei hochladen ODER Text/Base64 einfuegen (Zertifikat, PKCS#7/S-MIME-Signaturblock oder CSR)
-            -- wird nur im Arbeitsspeicher analysiert und direkt danach geloescht, kein dauerhafter Speicher.
+            {t("openssl.subtitle")}
           </p>
 
           <div className="mt-6 space-y-4 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
@@ -91,7 +91,7 @@ export default function OpensslFileInspectorPage() {
                   inputMode === "file" ? "bg-signal/10 text-signal" : "text-ink-muted hover:text-ink"
                 }`}
               >
-                <FileUp className="h-3.5 w-3.5" /> Datei hochladen
+                <FileUp className="h-3.5 w-3.5" /> {t("openssl.upload_tab")}
               </button>
               <button
                 type="button"
@@ -100,7 +100,7 @@ export default function OpensslFileInspectorPage() {
                   inputMode === "paste" ? "bg-signal/10 text-signal" : "text-ink-muted hover:text-ink"
                 }`}
               >
-                <ClipboardPaste className="h-3.5 w-3.5" /> Text/Base64 einfuegen
+                <ClipboardPaste className="h-3.5 w-3.5" /> {t("openssl.paste_tab")}
               </button>
             </div>
 
@@ -116,7 +116,7 @@ export default function OpensslFileInspectorPage() {
               >
                 <FileUp className="h-6 w-6 text-ink-muted" />
                 <p className="mt-2 text-sm text-ink">
-                  {file ? file.name : "Datei hierher ziehen oder klicken"}
+                  {file ? file.name : t("openssl.drop_hint")}
                 </p>
                 {file && <p className="mt-1 text-xs text-ink-muted">{(file.size / 1024).toFixed(1)} KB</p>}
                 <input
@@ -130,7 +130,7 @@ export default function OpensslFileInspectorPage() {
               <textarea
                 value={pastedText}
                 onChange={(e) => { setPastedText(e.target.value); setResult(null); }}
-                placeholder={"-----BEGIN CERTIFICATE-----\n...oder reines Base64 ohne PEM-Markierungen..."}
+                placeholder={t("openssl.paste_placeholder")}
                 rows={8}
                 className="input font-mono text-xs"
               />
@@ -143,7 +143,7 @@ export default function OpensslFileInspectorPage() {
               className="submit-button w-auto px-4"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              Analysieren
+              {t("openssl.analyze_button")}
             </button>
           </div>
 

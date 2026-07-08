@@ -5,6 +5,7 @@ import { KeyRound, Loader2, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } f
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
+import { useLanguage } from "@/components/language-provider";
 
 type Passkey = { id: number; nickname: string; created_at: string };
 type TwoFactorStatus = { totp_enabled: boolean; passkeys: Passkey[] };
@@ -21,17 +22,16 @@ async function postJson(url: string, body?: unknown) {
 }
 
 export default function SecuritySettingsPage() {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<TwoFactorStatus | null>(null);
   const [webauthnSupported, setWebauthnSupported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Passwort-Formular
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
 
-  // TOTP-Setup
   const [totpSetup, setTotpSetup] = useState<{ secret: string; qrCode: string } | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ export default function SecuritySettingsPage() {
     setChangingPassword(true);
     try {
       await postJson("/api/account/password", { current_password: currentPassword, new_password: newPassword });
-      setNotice("Passwort erfolgreich geaendert.");
+      setNotice(t("security.password_changed_notice"));
       setCurrentPassword("");
       setNewPassword("");
     } catch (err) {
@@ -85,7 +85,7 @@ export default function SecuritySettingsPage() {
       setStatus(data);
       setTotpSetup(null);
       setTotpCode("");
-      setNotice("TOTP eingerichtet.");
+      setNotice(t("security.totp_setup_notice"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Code ungueltig");
     } finally {
@@ -116,7 +116,7 @@ export default function SecuritySettingsPage() {
       const nickname = prompt("Name fuer diesen Passkey (z.B. 'MacBook', 'YubiKey')", "Passkey") ?? "Passkey";
       const data = await postJson("/api/account/2fa/passkey/register/verify", { credential, nickname });
       setStatus(data);
-      setNotice("Passkey hinzugefuegt.");
+      setNotice(t("security.passkey_added_notice"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Passkey-Einrichtung fehlgeschlagen oder abgebrochen");
     } finally {
@@ -146,10 +146,8 @@ export default function SecuritySettingsPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">Sicherheit</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Passwort aendern und 2FA-Methoden verwalten -- TOTP und Passkey koennen gleichzeitig aktiv sein.
-          </p>
+          <h1 className="font-display text-2xl text-ink">{t("security.title")}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{t("security.subtitle")}</p>
 
           {error && (
             <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
@@ -162,12 +160,11 @@ export default function SecuritySettingsPage() {
             </p>
           )}
 
-          {/* Passwort */}
           <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
-            <h2 className="font-display text-base text-ink">Passwort</h2>
+            <h2 className="font-display text-base text-ink">{t("security.password_heading")}</h2>
             <form onSubmit={handleChangePassword} className="mt-4 space-y-3">
               <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Aktuelles Passwort</span>
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.current_password_label")}</span>
                 <input
                   type="password"
                   value={currentPassword}
@@ -178,7 +175,7 @@ export default function SecuritySettingsPage() {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Neues Passwort (mind. 12 Zeichen)</span>
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.new_password_label")}</span>
                 <input
                   type="password"
                   value={newPassword}
@@ -190,31 +187,30 @@ export default function SecuritySettingsPage() {
                 />
               </label>
               <button type="submit" disabled={changingPassword} className="submit-button w-auto px-4">
-                {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Passwort aendern"}
+                {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : t("security.change_password_button")}
               </button>
             </form>
           </section>
 
-          {/* TOTP */}
           <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-base text-ink">Authenticator-App (TOTP)</h2>
+              <h2 className="font-display text-base text-ink">{t("security.totp_heading")}</h2>
               {status && (
                 <span className={status.totp_enabled ? "text-xs text-signal" : "text-xs text-ink-muted"}>
-                  {status.totp_enabled ? "Aktiv" : "Nicht eingerichtet"}
+                  {status.totp_enabled ? t("security.totp_active") : t("security.totp_not_set_up")}
                 </span>
               )}
             </div>
 
             {status?.totp_enabled && !totpSetup && (
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-ink-muted">TOTP ist aktiv. Secret rotieren oder deaktivieren:</p>
+                <p className="text-sm text-ink-muted">{t("security.totp_active_note")}</p>
                 <div className="flex gap-2">
                   <button onClick={handleStartTotpSetup} disabled={busy} className="method-button w-auto px-3">
-                    <Smartphone className="h-4 w-4" /> Rotieren
+                    <Smartphone className="h-4 w-4" /> {t("security.rotate_button")}
                   </button>
                   <button onClick={handleDisableTotp} disabled={busy} className="method-button w-auto px-3 hover:border-critical/40 hover:text-critical">
-                    <ShieldOff className="h-4 w-4" /> Deaktivieren
+                    <ShieldOff className="h-4 w-4" /> {t("security.deactivate_button")}
                   </button>
                 </div>
               </div>
@@ -222,13 +218,13 @@ export default function SecuritySettingsPage() {
 
             {!status?.totp_enabled && !totpSetup && (
               <button onClick={handleStartTotpSetup} disabled={busy} className="method-button mt-4">
-                <Plus className="h-4 w-4" /> TOTP einrichten
+                <Plus className="h-4 w-4" /> {t("security.setup_totp_button")}
               </button>
             )}
 
             {totpSetup && (
               <div className="mt-4 space-y-3">
-                <p className="text-sm text-ink-muted">QR-Code mit deiner Authenticator-App scannen:</p>
+                <p className="text-sm text-ink-muted">{t("security.scan_qr_note")}</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={totpSetup.qrCode} alt="TOTP QR-Code" className="mx-auto rounded-lg border border-base-border" />
                 <p className="text-center font-mono text-xs text-ink-muted">{totpSetup.secret}</p>
@@ -242,26 +238,25 @@ export default function SecuritySettingsPage() {
                     className="input font-mono tracking-widest"
                   />
                   <button type="submit" disabled={busy} className="submit-button w-auto px-4">
-                    <ShieldCheck className="h-4 w-4" /> Bestaetigen
+                    <ShieldCheck className="h-4 w-4" /> {t("security.confirm_button")}
                   </button>
                 </form>
               </div>
             )}
           </section>
 
-          {/* Passkeys */}
           <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-base text-ink">Passkeys</h2>
+              <h2 className="font-display text-base text-ink">{t("security.passkeys_heading")}</h2>
               {webauthnSupported && (
                 <button onClick={handleAddPasskey} disabled={busy} className="method-button w-auto px-3">
-                  <Plus className="h-4 w-4" /> Hinzufuegen
+                  <Plus className="h-4 w-4" /> {t("security.add_button")}
                 </button>
               )}
             </div>
 
             {!webauthnSupported && (
-              <p className="mt-3 text-sm text-ink-muted">Dein Browser unterstuetzt keine Passkeys.</p>
+              <p className="mt-3 text-sm text-ink-muted">{t("security.no_webauthn_support")}</p>
             )}
 
             <ul className="mt-4 space-y-2">
@@ -277,7 +272,7 @@ export default function SecuritySettingsPage() {
                   <button
                     onClick={() => handleDeletePasskey(passkey)}
                     disabled={busy}
-                    title="Entfernen"
+                    title={t("security.remove_title")}
                     className="rounded-lg border border-base-border p-1.5 text-ink-muted hover:border-critical/40 hover:text-critical"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -285,7 +280,7 @@ export default function SecuritySettingsPage() {
                 </li>
               ))}
               {status?.passkeys.length === 0 && (
-                <p className="text-sm text-ink-muted">Noch kein Passkey eingerichtet.</p>
+                <p className="text-sm text-ink-muted">{t("security.no_passkey_yet")}</p>
               )}
             </ul>
           </section>

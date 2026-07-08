@@ -7,6 +7,7 @@ import { ArrowLeft, ShieldAlert, Star } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { ToolRunner } from "@/components/tool-runner";
+import { ToolConsole } from "@/components/tool-console";
 import { TOOL_FORMS } from "@/lib/tool-forms";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
@@ -19,12 +20,33 @@ type ToolMeta = {
   is_active_scan: boolean;
 };
 
+const NMAP_CONSOLE_INTRO = [
+  "nmap-Konsole -- tippe einen Sub-Befehl, z.B.:",
+  "  nmap-quick example.com",
+  "  nmap-vuln-scan example.com   (nur Admins)",
+  "'list' zeigt alle nmap-Befehle mit ihren Parametern.",
+];
+
+const NIKTO_CONSOLE_INTRO = [
+  "Nikto-Konsole -- tippe direkt das Ziel, z.B.:",
+  "  example.com",
+  "Nur fuer Systeme, fuer die du eine Erlaubnis zum Testen hast.",
+];
+
 export default function ToolPage() {
   const params = useParams<{ slug: string }>();
   const { t } = useLanguage();
   const [tool, setTool] = useState<ToolMeta | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me: { role?: string } | null) => setIsAdmin(me?.role === "admin"))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   useEffect(() => {
     fetch("/api/tools")
@@ -110,6 +132,21 @@ export default function ToolPage() {
                   </p>
                 )}
               </div>
+
+              {tool.slug === "nikto-scan" && isAdmin && (
+                <div className="mt-4">
+                  <ToolConsole fixedSlug="nikto-scan" placeholder="example.com" introLines={NIKTO_CONSOLE_INTRO} />
+                </div>
+              )}
+              {tool.category === "nmap" && tool.slug !== "nikto-scan" && (
+                <div className="mt-4">
+                  <ToolConsole
+                    allowedSlugs={["nmap-quick", "nmap-top-ports", "nmap-service-detection", "nmap-os-detection", "nmap-aggressive", "nmap-udp", "nmap-host-discovery", "nmap-full-port-scan", "nmap-vuln-scan"]}
+                    placeholder="nmap-quick example.com"
+                    introLines={NMAP_CONSOLE_INTRO}
+                  />
+                </div>
+              )}
             </>
           )}
         </main>

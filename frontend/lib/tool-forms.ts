@@ -101,6 +101,15 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "nikto-scan": [
     { name: "target", label: "Ziel (nur Systeme, fuer die du eine Erlaubnis hast)", type: "text", placeholder: "example.com", helpText: "Aktiver Scan mit tausenden Anfragen -- kann bis zu 3 Minuten dauern. Nur fuer Administratoren." },
   ],
+  "nmap-host-discovery": [
+    { name: "target", label: "Ziel", type: "text", placeholder: "example.com", helpText: "Reiner Ping-Scan -- prueft nur Erreichbarkeit, keine Ports." },
+  ],
+  "nmap-full-port-scan": [
+    { name: "target", label: "Ziel", type: "text", placeholder: "example.com", helpText: "Scannt ALLE 65535 Ports -- kann mehrere Minuten dauern." },
+  ],
+  "nmap-vuln-scan": [
+    { name: "target", label: "Ziel (nur Systeme, fuer die du eine Erlaubnis hast)", type: "text", placeholder: "example.com", helpText: "Nutzt nmaps 'vuln'-Script-Kategorie. Nur fuer Administratoren." },
+  ],
 
   // --- Utilities ---
   "hash-generator": [
@@ -208,6 +217,8 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "subdomain-bruteforce": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "typosquat-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "subdomain-takeover-checker": [{ name: "subdomain", label: "Subdomain", type: "text", placeholder: "forgotten.example.com" }],
   "google-dork-generator": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "tech-fingerprint": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 };

@@ -239,7 +239,7 @@ async def start_totp_setup(payload: PendingOnlyRequest, db: Session = Depends(ge
 
 
 @router.post("/2fa/totp/setup/verify")
-async def verify_totp_setup(payload: TotpVerifyRequest, response: Response, db: Session = Depends(get_db)) -> dict:
+async def verify_totp_setup(payload: TotpVerifyRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
     pending, user = await _resolve_pending(payload.pending_token, db)
     secret = pending.get("totp_setup_secret")
     if not secret:
@@ -255,6 +255,10 @@ async def verify_totp_setup(payload: TotpVerifyRequest, response: Response, db: 
     session_id = await create_session(user.id)
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
+    log_audit_event(
+        db, "totp_enabled", success=True, username=user.username, ip_address=get_client_ip(request),
+        detail="Ersteinrichtung waehrend Registrierung/Login",
+    )
     return {"success": True}
 
 

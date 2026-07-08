@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -11,7 +12,8 @@ from app.api.deps import get_current_user, require_admin
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.sessions import get_online_user_ids
-from app.models.user import AuditLogEntry, User
+from app.models.user import AuditLogEntry, ToolExecution, User
+from app.modules import get_registry
 
 logger = logging.getLogger("toolbox.system")
 settings = get_settings()
@@ -152,3 +154,94 @@ async def get_audit_log(
 async def list_audit_event_types(db: Session = Depends(get_db), _admin: User = Depends(require_admin)) -> list[str]:
     rows = db.query(AuditLogEntry.event_type).distinct().all()
     return sorted({r[0] for r in rows})
+
+
+# --- Scan-Historie fuer aktive Scans (admin-only) --------------------------
+#
+# Nutzt die bereits bestehende tool_executions-Tabelle (die JEDE
+# Tool-Ausfuehrung protokolliert), gefiltert auf Tools mit
+# is_active_scan=True -- eigene Uebersicht, weil diese Tools potenziell
+# gegen Dritte eingesetzt werden koennen und daher besondere
+# Nachvollziehbarkeit verdienen (wer hat wann gegen welches Ziel
+# gescannt).
+
+class ScanHistoryEntryOut(BaseModel):
+    id: int
+    tool_slug: str
+    username: str
+    target: str | None
+    success: bool
+    ran_at: str
+    error_message: str | None
+
+
+class PaginatedScanHistoryOut(BaseModel):
+    items: list[ScanHistoryEntryOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+def _active_scan_slugs() -> set[str]:
+    return {slug for slug, module_cls in get_registry().items() if module_cls.is_active_scan}
+
+
+def _extract_target(input_json: str | None) -> str | None:
+    if not input_json:
+        return None
+    try:
+        data = json.loads(input_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return data.get("target") or data.get("domain") or data.get("subdomain")
+
+
+@router.get("/scan-history", response_model=PaginatedScanHistoryOut)
+async def get_scan_history(
+    search: str | None = None,
+    tool_slug: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+) -> PaginatedScanHistoryOut:
+    page = max(1, page)
+    page_size = max(1, min(page_size, 200))
+
+    active_slugs = _active_scan_slugs()
+    query = db.query(ToolExecution).filter(ToolExecution.tool_slug.in_(active_slugs))
+    if tool_slug:
+        query = query.filter(ToolExecution.tool_slug == tool_slug)
+
+    all_matching = query.order_by(ToolExecution.ran_at.desc()).all()
+
+    user_ids = {e.user_id for e in all_matching}
+    usernames = {u.id: u.username for u in db.query(User).filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
+    entries = []
+    for e in all_matching:
+        target = _extract_target(e.input_json)
+        username = usernames.get(e.user_id, "?")
+        if search:
+            needle = search.strip().lower()
+            haystack = f"{username} {target or ''}".lower()
+            if needle not in haystack:
+                continue
+        entries.append(ScanHistoryEntryOut(
+            id=e.id, tool_slug=e.tool_slug, username=username, target=target,
+            success=e.success, ran_at=e.ran_at.isoformat(), error_message=e.error_message,
+        ))
+
+    total = len(entries)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+    page_items = entries[start : start + page_size]
+
+    return PaginatedScanHistoryOut(items=page_items, total=total, page=page, page_size=page_size, total_pages=total_pages)
+
+
+@router.get("/scan-history/tools")
+async def list_scan_history_tools(_admin: User = Depends(require_admin)) -> list[str]:
+    return sorted(_active_scan_slugs())

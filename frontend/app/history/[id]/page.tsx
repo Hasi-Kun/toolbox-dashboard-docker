@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { JsonResult } from "@/components/json-result";
+import { useLanguage } from "@/components/language-provider";
 
 type ExecutionDetail = {
   id: number;
@@ -22,6 +23,7 @@ type Tool = { slug: string; name: string };
 
 export default function HistoryDetailPage() {
   const params = useParams<{ id: string }>();
+  const { t } = useLanguage();
   const [execution, setExecution] = useState<ExecutionDetail | null>(null);
   const [toolName, setToolName] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -48,12 +50,12 @@ export default function HistoryDetailPage() {
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
           <Link href="/" className="mb-4 flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink">
-            <ArrowLeft className="h-4 w-4" /> Zurueck zum Dashboard
+            <ArrowLeft className="h-4 w-4" /> {t("history.back_to_dashboard")}
           </Link>
 
           {notFound && (
             <p className="rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-              Eintrag nicht gefunden.
+              {t("history.not_found")}
             </p>
           )}
 
@@ -68,7 +70,7 @@ export default function HistoryDetailPage() {
                 <h1 className="font-display text-2xl text-ink">{toolName ?? execution.tool_slug}</h1>
               </div>
               <p className="mt-1 text-sm text-ink-muted">
-                Ausgefuehrt am {new Date(execution.ran_at + "Z").toLocaleString("de-DE")}
+                {t("history.ran_at")} {new Date(execution.ran_at + "Z").toLocaleString("de-DE")}
               </p>
 
               {execution.error_message && (
@@ -79,14 +81,14 @@ export default function HistoryDetailPage() {
 
               {execution.input && (
                 <div className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
-                  <h3 className="mb-4 font-display text-sm text-ink-muted">Eingabe</h3>
+                  <h3 className="mb-4 font-display text-sm text-ink-muted">{t("history.input_heading")}</h3>
                   <JsonResult data={execution.input} />
                 </div>
               )}
 
               {execution.output && (
                 <div className="mt-4 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
-                  <h3 className="mb-4 font-display text-sm text-ink-muted">Ergebnis</h3>
+                  <h3 className="mb-4 font-display text-sm text-ink-muted">{t("history.output_heading")}</h3>
                   <JsonResult data={execution.output} />
                 </div>
               )}
@@ -95,7 +97,7 @@ export default function HistoryDetailPage() {
                 href={`/tools/${execution.tool_slug}`}
                 className="mt-6 inline-block rounded-lg border border-base-border px-4 py-2 text-sm text-ink-muted hover:border-signal/40 hover:text-signal"
               >
-                Erneut ausfuehren
+                {t("history.rerun_link")}
               </Link>
             </>
           )}

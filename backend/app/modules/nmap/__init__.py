@@ -5,10 +5,13 @@ eine Redis-Queue (siehe app/core/scan_queue.py).
 
 from app.modules.nmap import (  # noqa: F401
     aggressive,
+    full_port_scan,
+    host_discovery,
     nikto_scan,
     os_detection,
     quick,
     service_detection,
     top_ports,
     udp,
+    vuln_scan,
 )

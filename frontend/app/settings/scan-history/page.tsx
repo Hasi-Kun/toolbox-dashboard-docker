@@ -7,69 +7,54 @@ import { Topbar } from "@/components/topbar";
 import { useIsAdmin, AdminOnlyNotice } from "@/components/use-is-admin";
 import { useLanguage } from "@/components/language-provider";
 
-type AuditEntry = {
+type ScanEntry = {
   id: number;
-  event_type: string;
-  username: string | null;
-  ip_address: string | null;
+  tool_slug: string;
+  username: string;
+  target: string | null;
   success: boolean;
-  detail: string | null;
-  created_at: string;
+  ran_at: string;
+  error_message: string | null;
 };
 
 type PaginatedResponse = {
-  items: AuditEntry[];
+  items: ScanEntry[];
   total: number;
   page: number;
   page_size: number;
   total_pages: number;
 };
 
-export default function AuditLogPage() {
+export default function ScanHistoryPage() {
   const { isAdmin, loaded } = useIsAdmin();
   const { t } = useLanguage();
   const [data, setData] = useState<PaginatedResponse | null>(null);
-  const [eventTypes, setEventTypes] = useState<string[]>([]);
+  const [tools, setTools] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [eventTypeFilter, setEventTypeFilter] = useState("");
+  const [toolFilter, setToolFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  const EVENT_LABELS: Record<string, string> = {
-    login_password: t("audit_log.event_login_password"),
-    login_2fa: t("audit_log.event_login_2fa"),
-    admin_create_user: t("audit_log.event_admin_create_user"),
-    admin_update_user: t("audit_log.event_admin_update_user"),
-    admin_delete_user: t("audit_log.event_admin_delete_user"),
-    invite_created: t("audit_log.event_invite_created"),
-    invite_revoked: t("audit_log.event_invite_revoked"),
-    password_changed: t("audit_log.event_password_changed"),
-    totp_enabled: t("audit_log.event_totp_enabled"),
-    totp_disabled: t("audit_log.event_totp_disabled"),
-    passkey_added: t("audit_log.event_passkey_added"),
-    passkey_removed: t("audit_log.event_passkey_removed"),
-  };
-
   useEffect(() => {
-    fetch("/api/system/audit-log/event-types")
+    fetch("/api/system/scan-history/tools")
       .then((res) => (res.ok ? res.json() : []))
-      .then(setEventTypes)
-      .catch(() => setEventTypes([]));
+      .then(setTools)
+      .catch(() => setTools([]));
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams({ page: String(page), page_size: "100" });
+    const params = new URLSearchParams({ page: String(page), page_size: "50" });
     if (search) params.set("search", search);
-    if (eventTypeFilter) params.set("event_type", eventTypeFilter);
-    fetch(`/api/system/audit-log?${params.toString()}`)
+    if (toolFilter) params.set("tool_slug", toolFilter);
+    fetch(`/api/system/scan-history?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then(setData)
       .catch(() => setData(null));
-  }, [search, eventTypeFilter, page]);
+  }, [search, toolFilter, page]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, eventTypeFilter]);
+  }, [search, toolFilter]);
 
   return (
     <div className="flex min-h-screen">
@@ -77,8 +62,8 @@ export default function AuditLogPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">{t("audit_log.title")}</h1>
-          <p className="mt-1 text-sm text-ink-muted">{t("audit_log.subtitle")}</p>
+          <h1 className="font-display text-2xl text-ink">{t("scan_history.title")}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{t("scan_history.subtitle")}</p>
 
           {loaded && !isAdmin && <AdminOnlyNotice />}
 
@@ -96,45 +81,39 @@ export default function AuditLogPage() {
                   <input
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder={t("audit_log.search_placeholder")}
+                    placeholder={t("scan_history.search_placeholder")}
                     className="input pl-9"
                   />
                 </form>
-                <select
-                  value={eventTypeFilter}
-                  onChange={(e) => setEventTypeFilter(e.target.value)}
-                  className="input w-auto"
-                >
-                  <option value="">{t("audit_log.all_event_types")}</option>
-                  {eventTypes.map((et) => (
-                    <option key={et} value={et}>
-                      {EVENT_LABELS[et] ?? et}
-                    </option>
+                <select value={toolFilter} onChange={(e) => setToolFilter(e.target.value)} className="input w-auto">
+                  <option value="">{t("scan_history.all_tools")}</option>
+                  {tools.map((tSlug) => (
+                    <option key={tSlug} value={tSlug}>{tSlug}</option>
                   ))}
                 </select>
               </div>
 
               <div className="mt-4 overflow-x-auto rounded-xl border border-base-border">
-                <table className="w-full min-w-[900px] text-sm">
+                <table className="w-full min-w-[800px] text-sm">
                   <thead className="bg-base-elevated text-left text-xs uppercase tracking-wider text-ink-muted">
                     <tr>
-                      <th className="whitespace-nowrap px-4 py-3">{t("audit_log.col_time")}</th>
-                      <th className="whitespace-nowrap px-4 py-3">{t("audit_log.col_event")}</th>
-                      <th className="whitespace-nowrap px-4 py-3">{t("audit_log.col_user")}</th>
-                      <th className="whitespace-nowrap px-4 py-3">{t("audit_log.col_ip")}</th>
-                      <th className="whitespace-nowrap px-4 py-3">{t("audit_log.col_status")}</th>
-                      <th className="px-4 py-3">{t("audit_log.col_detail")}</th>
+                      <th className="whitespace-nowrap px-4 py-3">{t("scan_history.col_time")}</th>
+                      <th className="whitespace-nowrap px-4 py-3">{t("scan_history.col_tool")}</th>
+                      <th className="whitespace-nowrap px-4 py-3">{t("scan_history.col_user")}</th>
+                      <th className="whitespace-nowrap px-4 py-3">{t("scan_history.col_target")}</th>
+                      <th className="whitespace-nowrap px-4 py-3">{t("scan_history.col_status")}</th>
+                      <th className="px-4 py-3">{t("scan_history.col_error")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data?.items.map((entry) => (
                       <tr key={entry.id} className="border-t border-base-border">
                         <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-muted">
-                          {new Date(entry.created_at + "Z").toLocaleString("de-DE")}
+                          {new Date(entry.ran_at + "Z").toLocaleString("de-DE")}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-ink">{EVENT_LABELS[entry.event_type] ?? entry.event_type}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{entry.username ?? "—"}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-muted">{entry.ip_address ?? "—"}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink">{entry.tool_slug}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{entry.username}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-muted">{entry.target ?? "—"}</td>
                         <td className="whitespace-nowrap px-4 py-3">
                           {entry.success ? (
                             <CheckCircle2 className="h-4 w-4 text-signal" />
@@ -142,13 +121,13 @@ export default function AuditLogPage() {
                             <XCircle className="h-4 w-4 text-critical" />
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-ink-muted">{entry.detail ?? "—"}</td>
+                        <td className="px-4 py-3 text-xs text-ink-muted">{entry.error_message ?? "—"}</td>
                       </tr>
                     ))}
                     {data?.items.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-4 py-6 text-center text-sm text-ink-muted">
-                          {t("audit_log.no_entries")}
+                          {t("scan_history.no_entries")}
                         </td>
                       </tr>
                     )}

@@ -61,6 +61,31 @@ def build_udp(params: dict) -> list[str]:
     return ["nmap", "-T4", "-sU", "--top-ports", str(count), "-oX", "-", target]
 
 
+def build_host_discovery(params: dict) -> list[str]:
+    """Reiner Ping-Scan (-sn) -- prueft nur, ob das Ziel erreichbar ist,
+    OHNE irgendwelche Ports zu scannen. Schnell und unauffaellig."""
+    target = _require_target(params)
+    return ["nmap", "-T4", "-sn", "-oX", "-", target]
+
+
+def build_full_port_scan(params: dict) -> list[str]:
+    """Scannt ALLE 65535 Ports (-p-) statt nur der gaengigsten -- deutlich
+    gruendlicher, aber auch deutlich langsamer als quick/top-ports."""
+    target = _require_target(params)
+    return ["nmap", "-T4", "-p-", "-oX", "-", target]
+
+
+def build_vuln_scan(params: dict) -> list[str]:
+    """Nutzt NUR nmaps eigene, mit dem Programm mitgelieferte 'vuln'-
+    Script-Kategorie (bekannte, vom nmap-Projekt selbst gepflegte und
+    read-only Pruefungen) -- bewusst NICHT '--script' mit einem vom Nutzer
+    waehlbaren Skriptnamen, das waere eine strukturelle NSE-Injection-
+    Luecke. Die Kategorie 'vuln' selbst ist fest verdrahtet, nicht
+    variabel."""
+    target = _require_target(params)
+    return ["nmap", "-T4", "--script", "vuln", "-oX", "-", target]
+
+
 NIKTO_BIN = "/opt/nikto/program/nikto.pl"
 
 
@@ -68,28 +93,22 @@ def build_nikto(params: dict) -> list[str]:
     """Nikto-Webserver-Scan -- wie bei nmap ausschliesslich feste Flags,
     NIE vom Nutzer frei waehlbare Kommandozeilenargumente.
 
-    WICHTIG: Anders als nmap (`-oX -` schreibt XML nach stdout) unterstuetzt
-    Nikto KEIN '-' als Stdout-Platzhalter fuer '-output' -- das fuehrte in
-    der Praxis dazu, dass Nikto stattdessen seine normalen Status-/
-    Fortschrittsmeldungen auf stdout ausgab (kein gueltiges JSON), waehrend
-    '-output -' vermutlich als woertlicher Dateiname interpretiert wurde.
-    Der Worker uebergibt hier einen echten temporaeren Dateipfad
-    (params['_output_path']), liest die Datei nach dem Lauf ein und
-    loescht sie wieder -- kein dauerhafter Speicher der Scan-Ergebnisse
-    auf der Platte.
+    Nutzt XML-Ausgabe statt JSON (siehe nikto_parser.py fuer die
+    Begruendung -- Niktos JSON-Report-Plugin hat sich in dieser Umgebung
+    wiederholt als nicht funktionsfaehig erwiesen, XML ist der laenger
+    etablierte, ausgereiftere Pfad).
 
-    Aufruf ueber den VOLLEN Pfad zum Script statt ueber einen PATH-Symlink
-    -- Nikto ist laut eigener Dokumentation als "self-contained" gedacht
-    und loest eigene Config-/Datenbank-Pfade relativ zu seinem Skript-
-    Pfad auf; ein Symlink-Aufruf koennte das (je nach Perl-FindBin-
-    Verhalten) durcheinanderbringen. Der volle, reale Pfad umgeht das.
+    Echter temporaerer Dateipfad statt '-' -- Nikto unterstuetzt kein
+    Stdout-Streaming fuer -output. Der Worker uebergibt hier
+    params['_output_path'], liest die Datei nach dem Lauf ein und loescht
+    sie wieder -- kein dauerhafter Speicher der Scan-Ergebnisse.
     """
     target = _require_target(params)
     output_path = params.get("_output_path")
     if not output_path:
         raise InvalidJobError("Interner Fehler: kein Ausgabe-Pfad fuer Nikto gesetzt")
     return [
-        NIKTO_BIN, "-h", target, "-Format", "json", "-output", output_path,
+        NIKTO_BIN, "-h", target, "-Format", "xml", "-output", output_path,
         "-maxtime", "180s",  # harte Obergrenze, unabhaengig vom Subprocess-Timeout unten
         "-ask", "no",  # nie interaktiv nachfragen (z.B. bei SSL-Zertifikatsfehlern)
     ]
@@ -102,5 +121,8 @@ TEMPLATES = {
     "os-detection": build_os_detection,
     "aggressive": build_aggressive,
     "udp": build_udp,
+    "host-discovery": build_host_discovery,
+    "full-port-scan": build_full_port_scan,
+    "vuln-scan": build_vuln_scan,
     "nikto": build_nikto,
 }

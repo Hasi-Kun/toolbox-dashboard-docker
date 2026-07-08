@@ -9,6 +9,7 @@ from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.audit import get_client_ip, log_audit_event
 from app.core.rate_limit import enforce_rate_limit
 from app.core.security import hash_password, verify_password
 from app.core.sessions import delete_transient, get_transient, store_transient
@@ -94,11 +95,16 @@ async def change_password(
     await enforce_rate_limit(request, bucket="auth-password-change", limit=settings.login_rate_limit_per_minute)
 
     if not verify_password(payload.current_password, user.password_hash):
+        log_audit_event(
+            db, "password_changed", success=False, username=user.username, ip_address=get_client_ip(request),
+            detail="Aktuelles Passwort war falsch",
+        )
         raise HTTPException(status_code=401, detail="Aktuelles Passwort ist falsch")
 
     user.password_hash = hash_password(payload.new_password)
     db.add(user)
     db.commit()
+    log_audit_event(db, "password_changed", success=True, username=user.username, ip_address=get_client_ip(request))
     return {"success": True}
 
 
@@ -121,7 +127,7 @@ async def start_totp_setup(user: User = Depends(get_current_user)) -> TotpSetupS
 
 @router.post("/me/2fa/totp/setup/verify", response_model=TwoFactorStatusResponse)
 async def verify_totp_setup(
-    payload: TotpCodeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    payload: TotpCodeRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> TwoFactorStatusResponse:
     transient = await get_transient(f"totp_setup:{user.id}")
     if transient is None:
@@ -135,11 +141,12 @@ async def verify_totp_setup(
     db.add(user)
     db.commit()
     await delete_transient(f"totp_setup:{user.id}")
+    log_audit_event(db, "totp_enabled", success=True, username=user.username, ip_address=get_client_ip(request))
     return _two_factor_status(user)
 
 
 @router.post("/me/2fa/totp/disable", response_model=TwoFactorStatusResponse)
-async def disable_totp(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> TwoFactorStatusResponse:
+async def disable_totp(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> TwoFactorStatusResponse:
     if _remaining_factors_after(user, drop_totp=True) < 1:
         raise HTTPException(
             status_code=400,
@@ -150,6 +157,7 @@ async def disable_totp(db: Session = Depends(get_db), user: User = Depends(get_c
     user.totp_secret = None
     db.add(user)
     db.commit()
+    log_audit_event(db, "totp_disabled", success=True, username=user.username, ip_address=get_client_ip(request))
     return _two_factor_status(user)
 
 
@@ -165,6 +173,7 @@ async def start_passkey_registration(user: User = Depends(get_current_user)) -> 
 @router.post("/me/2fa/passkey/register/verify", response_model=TwoFactorStatusResponse)
 async def verify_passkey_registration(
     payload: PasskeyRegisterVerifyRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TwoFactorStatusResponse:
@@ -190,12 +199,16 @@ async def verify_passkey_registration(
     db.commit()
     db.refresh(user)
     await delete_transient(f"webauthn_challenge:{user.id}")
+    log_audit_event(
+        db, "passkey_added", success=True, username=user.username, ip_address=get_client_ip(request),
+        detail=f"Nickname: {payload.nickname or 'Passkey'}",
+    )
     return _two_factor_status(user)
 
 
 @router.delete("/me/2fa/passkey/{credential_id}", response_model=TwoFactorStatusResponse)
 async def delete_passkey(
-    credential_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    credential_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> TwoFactorStatusResponse:
     credential = next((c for c in user.webauthn_credentials if c.id == credential_id), None)
     if credential is None:
@@ -207,9 +220,14 @@ async def delete_passkey(
             detail="Das ist deine einzige 2FA-Methode -- richte zuerst TOTP oder einen weiteren Passkey ein.",
         )
 
+    nickname = credential.nickname
     db.delete(credential)
     db.commit()
     db.refresh(user)
+    log_audit_event(
+        db, "passkey_removed", success=True, username=user.username, ip_address=get_client_ip(request),
+        detail=f"Nickname: {nickname}",
+    )
     return _two_factor_status(user)
 
 

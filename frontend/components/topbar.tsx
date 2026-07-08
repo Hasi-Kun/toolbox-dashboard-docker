@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Languages, LogOut, Search, Star, X } from "lucide-react";
+import { Languages, LogOut, Search, Settings, Sparkles, ShieldCheck, UserPlus, Star, X } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
 import { StyledUsername } from "@/components/styled-username";
@@ -11,7 +11,7 @@ import { WebCliManager } from "@/components/webcli/webcli-manager";
 
 type Me = {
   id: number; username: string; role: string; has_2fa: boolean; is_premium: boolean; premium_badge_color: string;
-  display_name_style: string; display_name_color: string; display_name_gradient_color: string;
+  display_name_style: string; display_name_color: string; display_name_gradient_color: string; invite_quota: number;
 };
 type Tool = { slug: string; name: string; description: string; category: string };
 type Favorite = { tool_slug: string };
@@ -26,9 +26,11 @@ export function Topbar() {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const favoritesRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -46,6 +48,7 @@ export function Topbar() {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
       if (favoritesRef.current && !favoritesRef.current.contains(e.target as Node)) setFavoritesOpen(false);
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -197,6 +200,47 @@ export function Topbar() {
                     </button>
                   </div>
                 ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <div ref={settingsRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((v) => !v)}
+            title={t("topbar.settings")}
+            className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-ink-muted hover:text-ink"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+
+          {settingsOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-base-border bg-base-elevated py-1 shadow-card">
+              {me?.is_premium && (
+                <Link
+                  href="/settings/display-style"
+                  onClick={() => setSettingsOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-ink-muted hover:bg-base-border/40 hover:text-ink"
+                >
+                  <Sparkles className="h-4 w-4" /> {t("display_style.title")}
+                </Link>
+              )}
+              <Link
+                href="/settings/security"
+                onClick={() => setSettingsOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-ink-muted hover:bg-base-border/40 hover:text-ink"
+              >
+                <ShieldCheck className="h-4 w-4" /> {t("security.title")}
+              </Link>
+              {(me?.role === "admin" || (me?.invite_quota ?? 0) > 0) && (
+                <Link
+                  href="/settings/invites"
+                  onClick={() => setSettingsOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-ink-muted hover:bg-base-border/40 hover:text-ink"
+                >
+                  <UserPlus className="h-4 w-4" /> {t("invites.title")}
+                </Link>
               )}
             </div>
           )}

@@ -19,6 +19,19 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 MAX_STORED_CHARS = 19000  # etwas Puffer unter dem 20000-Zeichen-Spaltenlimit
 
+# Zusaetzlich zum kategorieweiten Limit (settings.scan_rate_limit_per_minute,
+# geteilt von ALLEN aktiven Scans der nmap-Kategorie) bekommen die
+# schwersten/langsamsten Tools ein eigenes, strengeres Limit PRO SLUG --
+# sonst koennte jemand mit 5 Nikto-Laeufen/Minute den einzigen Scanner-
+# Worker fuer alle anderen nmap-Tools komplett verstopfen (Nikto/Full-
+# Port-Scan/Vuln-Scan koennen jeweils mehrere Minuten dauern und werden
+# vom Scanner-Container sequenziell abgearbeitet, nicht parallel).
+_PER_SLUG_SCAN_LIMITS: dict[str, int] = {
+    "nikto-scan": 2,
+    "nmap-full-port-scan": 2,
+    "nmap-vuln-scan": 2,
+}
+
 
 def _log_execution(
     db: Session,
@@ -75,6 +88,11 @@ async def run_tool(
     else:
         limit = settings.rate_limit_per_minute
     await enforce_rate_limit(request, bucket=module_cls.category, limit=limit)
+
+    # Zusaetzliches, strengeres Pro-Slug-Limit fuer die schwersten Tools
+    # (siehe Kommentar bei _PER_SLUG_SCAN_LIMITS oben).
+    if slug in _PER_SLUG_SCAN_LIMITS:
+        await enforce_rate_limit(request, bucket=f"tool:{slug}", limit=_PER_SLUG_SCAN_LIMITS[slug])
 
     try:
         input_data = module_cls.Input(**payload)

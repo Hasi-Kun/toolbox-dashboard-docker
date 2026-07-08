@@ -49,5 +49,5 @@ def test_all_nmap_modules_are_marked_as_active_scan():
 
     registry = get_registry()
     nmap_modules = {slug: cls for slug, cls in registry.items() if cls.category == "nmap"}
-    assert len(nmap_modules) == 7
+    assert len(nmap_modules) == 10
     assert all(cls.is_active_scan for cls in nmap_modules.values())

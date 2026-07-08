@@ -1,4 +1,5 @@
 import { Crown, ShieldCheck } from "lucide-react";
+import { useLanguage } from "@/components/language-provider";
 
 type StyledUsernameProps = {
   username: string;
@@ -21,6 +22,7 @@ export function StyledUsername({
   premiumBadgeColor = "#F5C518",
   showBadge = true,
 }: StyledUsernameProps) {
+  const { t } = useLanguage();
   const isAdmin = role === "admin";
   const applyStyle = isPremium && displayNameStyle !== "default";
 
@@ -62,7 +64,7 @@ export function StyledUsername({
           title="Administrator"
         >
           <ShieldCheck className="h-2.5 w-2.5" />
-          ADMIN
+          {t("common.admin_badge")}
         </span>
       )}
       {showBadge && !isAdmin && isPremium && (
@@ -72,7 +74,7 @@ export function StyledUsername({
           title="Premium"
         >
           <Crown className="h-2.5 w-2.5" style={{ color: premiumBadgeColor }} />
-          VIP
+          {t("common.vip_badge")}
         </span>
       )}
     </span>

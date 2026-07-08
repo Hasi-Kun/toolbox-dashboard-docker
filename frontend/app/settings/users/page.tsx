@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { useIsAdmin, AdminOnlyNotice } from "@/components/use-is-admin";
 import { PremiumBadge } from "@/components/premium-badge";
+import { useLanguage } from "@/components/language-provider";
 
 type UserRow = {
   id: number;
@@ -20,6 +21,7 @@ type UserRow = {
 
 export default function UsersSettingsPage() {
   const { isAdmin, loaded } = useIsAdmin();
+  const { t } = useLanguage();
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -32,11 +34,11 @@ export default function UsersSettingsPage() {
   async function loadUsers() {
     const res = await fetch("/api/users");
     if (res.status === 403) {
-      setError("Nur fuer Administratoren.");
+      setError(t("users.only_admins"));
       return;
     }
     if (!res.ok) {
-      setError("Benutzer konnten nicht geladen werden.");
+      setError(t("users.load_error"));
       return;
     }
     setUsers(await res.json());
@@ -125,11 +127,8 @@ export default function UsersSettingsPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">Benutzerverwaltung</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Neue Benutzer anlegen, Rollen aendern, 2FA zuruecksetzen. Es gibt keine
-            oeffentliche Registrierung -- alle Accounts werden hier oder per CLI angelegt.
-          </p>
+          <h1 className="font-display text-2xl text-ink">{t("users.title")}</h1>
+          <p className="mt-1 text-sm text-ink-muted">{t("users.subtitle")}</p>
 
           {loaded && !isAdmin && <AdminOnlyNotice />}
 
@@ -151,7 +150,7 @@ export default function UsersSettingsPage() {
             className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-base-border bg-base-elevated p-4 shadow-card"
           >
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">Benutzername</span>
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("users.username_label")}</span>
               <input
                 value={newUsername}
                 onChange={(e) => setNewUsername(e.target.value)}
@@ -160,7 +159,7 @@ export default function UsersSettingsPage() {
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">Rolle</span>
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("users.role_label")}</span>
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as "member" | "admin")}
@@ -172,7 +171,7 @@ export default function UsersSettingsPage() {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-ink-muted">
-                Passwort (optional, sonst automatisch generiert)
+                {t("users.password_label")}
               </span>
               <input
                 type="password"
@@ -184,13 +183,13 @@ export default function UsersSettingsPage() {
               />
             </label>
             <button type="submit" disabled={creating} className="submit-button w-auto px-4">
-              <Plus className="h-4 w-4" /> Benutzer anlegen
+              <Plus className="h-4 w-4" /> {t("users.create_button")}
             </button>
           </form>
 
           {generatedPassword && (
             <p className="mt-3 rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-ink">
-              Einmal-Passwort (jetzt sicher weitergeben, wird nicht erneut angezeigt):{" "}
+              {t("users.generated_password_notice")}{" "}
               <span className="font-mono text-signal">{generatedPassword}</span>
             </p>
           )}
@@ -199,13 +198,13 @@ export default function UsersSettingsPage() {
             <table className="w-full text-sm">
               <thead className="bg-base-elevated text-left text-xs uppercase tracking-wider text-ink-muted">
                 <tr>
-                  <th className="px-4 py-3">Benutzername</th>
-                  <th className="px-4 py-3">Rolle</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">2FA</th>
-                  <th className="px-4 py-3">Invite-Kontingent</th>
-                  <th className="px-4 py-3">Premium</th>
-                  <th className="px-4 py-3 text-right">Aktionen</th>
+                  <th className="px-4 py-3">{t("users.col_username")}</th>
+                  <th className="px-4 py-3">{t("users.col_role")}</th>
+                  <th className="px-4 py-3">{t("users.col_status")}</th>
+                  <th className="px-4 py-3">{t("users.col_2fa")}</th>
+                  <th className="px-4 py-3">{t("users.col_invite_quota")}</th>
+                  <th className="px-4 py-3">{t("users.col_premium")}</th>
+                  <th className="px-4 py-3 text-right">{t("users.col_actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -220,12 +219,12 @@ export default function UsersSettingsPage() {
                     <td className="px-4 py-3 text-ink-muted">{user.role}</td>
                     <td className="px-4 py-3">
                       <span className={user.is_active ? "text-signal" : "text-ink-muted"}>
-                        {user.is_active ? "Aktiv" : "Deaktiviert"}
+                        {user.is_active ? t("common.active") : t("common.deactivated")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={user.has_2fa ? "text-signal" : "text-warn"}>
-                        {user.has_2fa ? "Eingerichtet" : "Ausstehend"}
+                        {user.has_2fa ? t("users.2fa_set_up") : t("users.2fa_pending")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -239,7 +238,7 @@ export default function UsersSettingsPage() {
                           if (value !== user.invite_quota) handleSetInviteQuota(user, value);
                         }}
                         className="input w-16 py-1 text-center text-xs"
-                        title="Anzahl der Einladungscodes, die dieser Nutzer selbst erstellen darf"
+                        title={t("users.invite_quota_title")}
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -248,18 +247,18 @@ export default function UsersSettingsPage() {
                         onClick={() => handleTogglePremium(user)}
                         className={`rounded-full px-2 py-0.5 text-xs ${user.is_premium ? "bg-signal/10 text-signal" : "bg-base-border text-ink-muted"}`}
                       >
-                        {user.is_premium ? "Aktiv" : "Inaktiv"}
+                        {user.is_premium ? t("common.active") : t("common.inactive")}
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <IconButton title="2FA zuruecksetzen" onClick={() => handleResetTwoFactor(user)}>
+                        <IconButton title={t("users.reset_2fa_title")} onClick={() => handleResetTwoFactor(user)}>
                           <KeyRound className="h-4 w-4" />
                         </IconButton>
-                        <IconButton title={user.is_active ? "Deaktivieren" : "Aktivieren"} onClick={() => handleToggleActive(user)}>
+                        <IconButton title={user.is_active ? t("users.deactivate_title") : t("users.activate_title")} onClick={() => handleToggleActive(user)}>
                           {user.is_active ? <ShieldOff className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                         </IconButton>
-                        <IconButton title="Loeschen" danger onClick={() => handleDelete(user)}>
+                        <IconButton title={t("users.delete_title")} danger onClick={() => handleDelete(user)}>
                           <Trash2 className="h-4 w-4" />
                         </IconButton>
                       </div>

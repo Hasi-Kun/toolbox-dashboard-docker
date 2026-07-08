@@ -359,3 +359,31 @@ def test_all_new_modules_registered():
     registry = get_registry()
     for slug in ["google-dork-generator", "tech-fingerprint"]:
         assert slug in registry
+
+
+@pytest.mark.asyncio
+async def test_tech_fingerprint_groups_by_category():
+    from app.modules.osint.tech_fingerprint import TechFingerprintModule
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"Server": "cloudflare"}
+        text = (
+            '<html><script src="https://js.stripe.com/v3/"></script>'
+            '<script src="https://cdn.shopify.com/s/files/x.js"></script>'
+            '<link href="https://fonts.googleapis.com/css?family=Roboto">'
+            "</html>"
+        )
+        url = "https://example.com/"
+
+    async def fake_get(self, url, **kwargs):
+        return FakeResponse()
+
+    with patch("httpx.AsyncClient.get", new=fake_get):
+        result = await TechFingerprintModule().run(TechFingerprintModule.Input(domain="example.com"))
+
+    assert result.success is True
+    assert "Cloudflare" in result.detected_by_category.get("CDN/Security", [])
+    assert "Stripe" in result.detected_by_category.get("Zahlungsanbieter", [])
+    assert "Shopify" in result.detected_by_category.get("E-Commerce", [])
+    assert "Google Fonts" in result.detected_by_category.get("Fonts", [])

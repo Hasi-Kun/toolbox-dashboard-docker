@@ -6,25 +6,27 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { StyledUsername } from "@/components/styled-username";
 import { useMe } from "@/components/use-is-admin";
-
-const STYLES: { value: string; label: string }[] = [
-  { value: "default", label: "Standard" },
-  { value: "solid", label: "Einfarbig" },
-  { value: "gradient", label: "Farbverlauf" },
-  { value: "particles", label: "Glanz-Effekt" },
-  { value: "twinkle", label: "Twinkle" },
-  { value: "glitter", label: "Glitter" },
-  { value: "rainbow", label: "Regenbogen" },
-];
+import { useLanguage } from "@/components/language-provider";
 
 export default function DisplayStylePage() {
   const { me, loaded } = useMe();
+  const { t } = useLanguage();
   const [style, setStyle] = useState("default");
   const [color, setColor] = useState("#35E0C0");
   const [gradientColor, setGradientColor] = useState("#F5C518");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const STYLES: { value: string; label: string }[] = [
+    { value: "default", label: t("display_style.style_default") },
+    { value: "solid", label: t("display_style.style_solid") },
+    { value: "gradient", label: t("display_style.style_gradient") },
+    { value: "particles", label: t("display_style.style_particles") },
+    { value: "twinkle", label: t("display_style.style_twinkle") },
+    { value: "glitter", label: t("display_style.style_glitter") },
+    { value: "rainbow", label: t("display_style.style_rainbow") },
+  ];
 
   useEffect(() => {
     fetch("/api/auth/me/display-style")
@@ -53,10 +55,10 @@ export default function DisplayStylePage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
-      setNotice("Gespeichert!");
+      if (!res.ok) throw new Error(data.detail ?? t("display_style.save_error"));
+      setNotice(t("display_style.saved_notice"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+      setError(err instanceof Error ? err.message : t("display_style.save_error"));
     } finally {
       setSaving(false);
     }
@@ -71,15 +73,13 @@ export default function DisplayStylePage() {
         <Topbar />
         <main className="mx-auto w-full max-w-xl flex-1 overflow-y-auto p-6">
           <h1 className="flex items-center gap-2 font-display text-2xl text-ink">
-            <Sparkles className="h-5 w-5 text-signal" /> Anzeigename-Style
+            <Sparkles className="h-5 w-5 text-signal" /> {t("display_style.title")}
           </h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Gestalte, wie dein Name in der Shoutbox und der Topbar erscheint. Premium-Feature.
-          </p>
+          <p className="mt-1 text-sm text-ink-muted">{t("display_style.subtitle")}</p>
 
           {loaded && !isPremium && (
             <p className="mt-6 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-              Das ist ein Premium-Feature. Ein Administrator kann dir Premium unter "Benutzer" freischalten.
+              {t("display_style.premium_notice")}
             </p>
           )}
 
@@ -89,7 +89,7 @@ export default function DisplayStylePage() {
               {notice && <p className="rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-signal">{notice}</p>}
 
               <div>
-                <p className="mb-2 text-xs font-medium text-ink-muted">Vorschau</p>
+                <p className="mb-2 text-xs font-medium text-ink-muted">{t("display_style.preview_label")}</p>
                 <div className="rounded-lg border border-base-border bg-base p-4">
                   <StyledUsername
                     username={me?.username ?? "DeinName"}
@@ -121,24 +121,24 @@ export default function DisplayStylePage() {
               {style !== "default" && style !== "rainbow" && (
                 <div className="flex gap-4">
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-medium text-ink-muted">Farbe</span>
+                    <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("display_style.color_label")}</span>
                     <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-16 rounded border border-base-border bg-base" />
                   </label>
                   {(style === "gradient" || style === "twinkle") && (
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium text-ink-muted">Verlaufsfarbe</span>
+                      <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("display_style.gradient_color_label")}</span>
                       <input type="color" value={gradientColor} onChange={(e) => setGradientColor(e.target.value)} className="h-9 w-16 rounded border border-base-border bg-base" />
                     </label>
                   )}
                 </div>
               )}
               {style === "rainbow" && (
-                <p className="text-xs text-ink-muted">Der Regenbogen-Stil zyklt automatisch durch alle Farben, keine Einstellung noetig.</p>
+                <p className="text-xs text-ink-muted">{t("display_style.rainbow_note")}</p>
               )}
 
               <button type="submit" disabled={saving} className="submit-button w-auto px-4">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Speichern
+                {t("common.save")}
               </button>
             </form>
           )}

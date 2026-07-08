@@ -7,6 +7,7 @@ import { ArrowBigDown, ArrowBigUp, ArrowLeft, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { StyledUsername } from "@/components/styled-username";
+import { useLanguage } from "@/components/language-provider";
 
 type DisplayFields = {
   role: string;
@@ -38,6 +39,7 @@ const STATUS_OPTIONS = ["open", "planned", "done", "rejected"];
 export default function FeatureRequestDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useLanguage();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [comment, setComment] = useState("");
@@ -106,12 +108,12 @@ export default function FeatureRequestDetailPage() {
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
           <Link href="/feature-requests" className="mb-4 flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink">
-            <ArrowLeft className="h-4 w-4" /> Zurueck zur Uebersicht
+            <ArrowLeft className="h-4 w-4" /> {t("feature_requests.back_to_overview")}
           </Link>
 
           {notFound && (
             <p className="rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-              Feature-Request nicht gefunden.
+              {t("feature_requests.not_found")}
             </p>
           )}
 
@@ -122,7 +124,7 @@ export default function FeatureRequestDetailPage() {
                   <button
                     type="button"
                     onClick={() => handleVote("up")}
-                    title="Upvote"
+                    title={t("feature_requests.upvote")}
                     className={`rounded-t-lg border px-3 py-1.5 ${
                       detail.user_vote === 1 ? "border-signal/50 bg-signal/10 text-signal" : "border-base-border text-ink-muted hover:border-signal/30"
                     }`}
@@ -133,7 +135,7 @@ export default function FeatureRequestDetailPage() {
                   <button
                     type="button"
                     onClick={() => handleVote("down")}
-                    title="Downvote"
+                    title={t("feature_requests.downvote")}
                     className={`rounded-b-lg border px-3 py-1.5 ${
                       detail.user_vote === -1 ? "border-critical/50 bg-critical/10 text-critical" : "border-base-border text-ink-muted hover:border-critical/30"
                     }`}
@@ -144,7 +146,7 @@ export default function FeatureRequestDetailPage() {
                 <div className="min-w-0 flex-1">
                   <h1 className="font-display text-xl text-ink">{detail.title}</h1>
                   <p className="mt-1 flex items-center gap-1 text-xs text-ink-muted">
-                    von
+                    {t("feature_requests.from_label")}
                     <StyledUsername
                       username={detail.username}
                       role={detail.role}
@@ -154,7 +156,7 @@ export default function FeatureRequestDetailPage() {
                       displayNameGradientColor={detail.display_name_gradient_color}
                       premiumBadgeColor={detail.premium_badge_color}
                     />
-                    &middot; {detail.upvotes} Pro / {detail.downvotes} Contra
+                    &middot; {detail.upvotes} {t("feature_requests.pro_label")} / {detail.downvotes} {t("feature_requests.contra_label")}
                   </p>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-ink">{detail.description}</p>
                 </div>
@@ -163,7 +165,7 @@ export default function FeatureRequestDetailPage() {
               {me?.role === "admin" && (
                 <div className="mt-4 flex items-center justify-between rounded-xl border border-base-border bg-base-elevated p-4 shadow-card">
                   <label className="flex items-center gap-2 text-sm text-ink-muted">
-                    Status:
+                    {t("feature_requests.status_change_label")}
                     <select
                       value={detail.status}
                       onChange={(e) => handleStatusChange(e.target.value)}
@@ -181,14 +183,14 @@ export default function FeatureRequestDetailPage() {
                     onClick={handleDeleteRequest}
                     className="flex items-center gap-1.5 rounded-lg border border-critical/30 px-3 py-1.5 text-sm text-critical hover:bg-critical/10"
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> Loeschen
+                    <Trash2 className="h-3.5 w-3.5" /> {t("common.delete")}
                   </button>
                 </div>
               )}
 
-              <h2 className="mt-6 font-display text-sm text-ink-muted">Kommentare</h2>
+              <h2 className="mt-6 font-display text-sm text-ink-muted">{t("feature_requests.comments_heading")}</h2>
               <div className="mt-2 space-y-2">
-                {detail.comments.length === 0 && <p className="text-sm text-ink-muted">Noch keine Kommentare.</p>}
+                {detail.comments.length === 0 && <p className="text-sm text-ink-muted">{t("feature_requests.no_comments")}</p>}
                 {detail.comments.map((c) => (
                   <div key={c.id} className="group flex items-start justify-between gap-2 rounded-lg border border-base-border bg-base-elevated p-3">
                     <div>
@@ -225,11 +227,11 @@ export default function FeatureRequestDetailPage() {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   maxLength={1000}
-                  placeholder="Kommentar schreiben..."
+                  placeholder={t("feature_requests.comment_placeholder")}
                   className="input flex-1"
                 />
                 <button type="submit" disabled={!comment.trim()} className="submit-button w-auto px-4">
-                  Senden
+                  {t("feature_requests.comment_submit")}
                 </button>
               </form>
             </>

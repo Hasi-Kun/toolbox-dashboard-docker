@@ -14,15 +14,13 @@ import {
   FileKey,
   LayoutDashboard,
   Users,
-  Lock,
   Palette,
   Lightbulb,
-  UserPlus,
   ScrollText,
   Eye,
-  Sparkles,
   ChevronsLeft,
   ChevronsRight,
+  ShieldAlert,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { cn } from "@/lib/utils";
@@ -47,8 +45,6 @@ export function Sidebar() {
   const pathname = usePathname();
   const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [canInvite, setCanInvite] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -67,15 +63,11 @@ export function Sidebar() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((me: { role?: string; invite_quota?: number; is_premium?: boolean } | null) => {
+      .then((me: { role?: string } | null) => {
         setIsAdmin(me?.role === "admin");
-        setCanInvite((me?.invite_quota ?? 0) > 0);
-        setIsPremium(Boolean(me?.is_premium));
       })
       .catch(() => {
         setIsAdmin(false);
-        setCanInvite(false);
-        setIsPremium(false);
       });
   }, []);
 
@@ -165,17 +157,9 @@ export function Sidebar() {
               <SidebarLink href="/settings/audit-log" icon={ScrollText} label="Audit-Log" active={pathname === "/settings/audit-log"} collapsed={collapsed} />
             </li>
           )}
-          {(isAdmin || canInvite) && (
+          {isAdmin && (
             <li>
-              <SidebarLink href="/settings/invites" icon={UserPlus} label={t("sidebar.invites")} active={pathname === "/settings/invites"} collapsed={collapsed} />
-            </li>
-          )}
-          <li>
-            <SidebarLink href="/settings/security" icon={Lock} label={t("sidebar.security")} active={pathname === "/settings/security"} collapsed={collapsed} />
-          </li>
-          {isPremium && (
-            <li>
-              <SidebarLink href="/settings/display-style" icon={Sparkles} label="Anzeigename-Style" active={pathname === "/settings/display-style"} collapsed={collapsed} />
+              <SidebarLink href="/settings/scan-history" icon={ShieldAlert} label="Scan-Historie" active={pathname === "/settings/scan-history"} collapsed={collapsed} />
             </li>
           )}
           {isAdmin && (

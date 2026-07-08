@@ -5,6 +5,7 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { useMe } from "@/components/use-is-admin";
+import { useLanguage } from "@/components/language-provider";
 
 type Invite = {
   id: number;
@@ -19,6 +20,7 @@ type Invite = {
 
 export default function InvitesPage() {
   const { me, loaded } = useMe();
+  const { t } = useLanguage();
   const isAdmin = me?.role === "admin";
   const canCreate = isAdmin || (me?.invite_quota ?? 0) > 0;
 
@@ -30,12 +32,11 @@ export default function InvitesPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   function load() {
-    // Admins sehen ALLE Invites, Member mit Invite-Recht nur ihre eigenen
     const url = isAdmin ? "/api/invites" : "/api/invites/mine";
     fetch(url)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(setInvites)
-      .catch(() => setError("Einladungscodes konnten nicht geladen werden."));
+      .catch(() => setError(t("invites.load_error")));
   }
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function InvitesPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.detail ?? "Fehler beim Erstellen");
+      setError(data.detail ?? t("feature_requests.create_error"));
       return;
     }
     setNote("");
@@ -79,10 +80,9 @@ export default function InvitesPage() {
         <div className="flex flex-1 flex-col">
           <Topbar />
           <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
-            <h1 className="font-display text-2xl text-ink">Einladungscodes</h1>
+            <h1 className="font-display text-2xl text-ink">{t("invites.title")}</h1>
             <p className="mt-4 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-              Du hast noch keine Berechtigung, Einladungscodes zu erstellen. Ein Administrator kann dir
-              dieses Recht unter "Benutzer" freischalten.
+              {t("invites.no_permission")}
             </p>
           </main>
         </div>
@@ -96,15 +96,13 @@ export default function InvitesPage() {
       <div className="flex flex-1 flex-col">
         <Topbar />
         <main className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">Einladungscodes</h1>
+          <h1 className="font-display text-2xl text-ink">{t("invites.title")}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            {isAdmin
-              ? "Registrierung ist nur mit einem gueltigen Einladungscode moeglich."
-              : "Deine eigenen Einladungscodes -- hier siehst du, wer sich mit deinem Code registriert hat."}
+            {isAdmin ? t("invites.subtitle_admin") : t("invites.subtitle_member")}
           </p>
           {!isAdmin && me && (
             <p className="mt-1 text-xs text-ink-muted">
-              Verbleibendes Kontingent: <span className="font-mono text-signal">{me.invite_quota}</span>
+              {t("invites.remaining_quota")} <span className="font-mono text-signal">{me.invite_quota}</span>
             </p>
           )}
 
@@ -114,12 +112,12 @@ export default function InvitesPage() {
 
           <form onSubmit={handleCreate} className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">Notiz (optional)</span>
-              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="z.B. fuer Bob" className="input w-48" />
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("invites.note_label")}</span>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("invites.note_placeholder")} className="input w-48" />
             </label>
             {isAdmin && (
               <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-ink-muted">Rolle</span>
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("invites.role_label")}</span>
                 <select value={role} onChange={(e) => setRole(e.target.value as "member" | "admin")} className="input w-32">
                   <option value="member">member</option>
                   <option value="admin">admin</option>
@@ -127,7 +125,7 @@ export default function InvitesPage() {
               </label>
             )}
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">Gueltig (Tage)</span>
+              <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("invites.valid_days_label")}</span>
               <input
                 type="number"
                 value={expiresInDays}
@@ -138,7 +136,7 @@ export default function InvitesPage() {
               />
             </label>
             <button type="submit" className="submit-button w-auto px-4">
-              <Plus className="h-4 w-4" /> Erstellen
+              <Plus className="h-4 w-4" /> {t("common.create")}
             </button>
           </form>
 
@@ -151,10 +149,10 @@ export default function InvitesPage() {
                     <span className="rounded-full bg-base-border px-1.5 py-0.5 text-[10px] text-ink-muted">{invite.role}</span>
                     {invite.used_by_username ? (
                       <span className="rounded-full bg-signal/10 px-1.5 py-0.5 text-[10px] text-signal">
-                        verwendet von {invite.used_by_username}
+                        {t("invites.used_by")} {invite.used_by_username}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-base-border px-1.5 py-0.5 text-[10px] text-ink-muted">offen</span>
+                      <span className="rounded-full bg-base-border px-1.5 py-0.5 text-[10px] text-ink-muted">{t("invites.open_status")}</span>
                     )}
                   </div>
                   {invite.note && <p className="mt-1 text-xs text-ink-muted">{invite.note}</p>}
@@ -165,16 +163,16 @@ export default function InvitesPage() {
                       <button
                         type="button"
                         onClick={() => copyLink(invite)}
-                        title="Link + Code kopieren"
+                        title={t("invites.copy_title")}
                         className="rounded-lg border border-base-border p-2 text-ink-muted hover:text-ink"
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </button>
-                      {copiedId === invite.id && <span className="text-xs text-signal">Kopiert!</span>}
+                      {copiedId === invite.id && <span className="text-xs text-signal">{t("common.copied")}</span>}
                       <button
                         type="button"
                         onClick={() => handleRevoke(invite.id)}
-                        title="Widerrufen"
+                        title={t("invites.revoke_title")}
                         className="rounded-lg border border-critical/30 p-2 text-critical hover:bg-critical/10"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -186,7 +184,7 @@ export default function InvitesPage() {
             ))}
             {invites?.length === 0 && (
               <p className="text-sm text-ink-muted">
-                {isAdmin ? "Noch keine Einladungscodes erstellt." : "Du hast noch keine Einladungscodes erstellt."}
+                {isAdmin ? t("invites.no_invites_admin") : t("invites.no_invites_member")}
               </p>
             )}
           </div>

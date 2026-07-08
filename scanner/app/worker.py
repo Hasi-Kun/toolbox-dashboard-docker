@@ -16,7 +16,7 @@ import redis.asyncio as redis
 
 from app.templates import TEMPLATES, InvalidJobError
 from app.xml_parser import parse_nmap_xml
-from app.nikto_parser import parse_nikto_json
+from app.nikto_parser import parse_nikto_xml
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | scanner | %(message)s")
 logger = logging.getLogger("scanner")
@@ -84,7 +84,7 @@ async def handle_job(job: dict) -> None:
         if template_name == "nikto":
             # Echter temporaerer Dateipfad statt '-' -- Nikto unterstuetzt
             # (anders als nmap) kein Stdout-Streaming fuer -output.
-            fd, nikto_output_path = tempfile.mkstemp(suffix=".json", prefix="nikto_")
+            fd, nikto_output_path = tempfile.mkstemp(suffix=".xml", prefix="nikto_")
             os.close(fd)
 
             args = builder({**params, "_output_path": nikto_output_path})
@@ -94,7 +94,7 @@ async def handle_job(job: dict) -> None:
                 raw_output = f.read()
 
             try:
-                result = parse_nikto_json(raw_output)
+                result = parse_nikto_xml(raw_output)
             except ValueError as exc:
                 # Diagnose-Hilfe: Niktos tatsaechliche Konsolenausgabe mit
                 # anhaengen, statt nur "kein JSON gefunden" zu melden --
