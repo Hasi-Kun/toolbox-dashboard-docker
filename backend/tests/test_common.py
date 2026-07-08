@@ -4,7 +4,7 @@ from app.modules.dns.common import is_valid_hostname, is_valid_ip
 def test_accepts_valid_domains():
     assert is_valid_hostname("example.com")
     assert is_valid_hostname("sub.example.co.uk")
-    assert is_valid_hostname("{{BASE_DOMAIN}}")
+    assert is_valid_hostname("hasikun.cc")
 
 
 def test_rejects_shell_metacharacters():

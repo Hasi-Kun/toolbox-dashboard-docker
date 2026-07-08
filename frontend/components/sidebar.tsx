@@ -178,7 +178,7 @@ export function Sidebar() {
 
       {!collapsed && (
         <div className="border-t border-base-border px-5 py-4 text-xs text-ink-muted">
-          {{TOOLBOX_DOMAIN}}
+          toolbox.hasikun.cc
         </div>
       )}
     </aside>

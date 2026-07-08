@@ -24,7 +24,28 @@ logger = logging.getLogger("scanner")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://toolbox-redis:6379/0")
 QUEUE_KEY = "scanner:jobs"
 RESULT_TTL_SECONDS = 300
-SUBPROCESS_TIMEOUT_SECONDS = 120
+
+# Pro-Template-Timeouts statt eines einzigen pauschalen Werts -- der Bug,
+# der bei nmap-vuln-scan aufgefallen ist (Backend erwartet bis zu 180s,
+# Scanner killte den Prozess pauschal nach 120s), haette genauso
+# full-port-scan (Backend 300s) und aggressive (Backend 150s) treffen
+# koennen. Werte hier jeweils knapp UNTER dem, was das Backend-Modul via
+# `wait_for_result(timeout=self.timeout_seconds - 5)` einraeumt, damit
+# der Scanner selbst sauber "Timeout" zurueckmelden kann, BEVOR das
+# Backend seinerseits aufgibt (sonst kommt statt einer klaren Timeout-
+# Meldung ein nichtssagendes "Scanner nicht erreichbar" beim Nutzer an).
+SUBPROCESS_TIMEOUT_BY_TEMPLATE: dict[str, int] = {
+    "quick": 30,
+    "top-ports": 50,
+    "service-detection": 65,
+    "os-detection": 50,
+    "aggressive": 140,
+    "udp": 90,
+    "host-discovery": 15,
+    "full-port-scan": 290,
+    "vuln-scan": 170,
+}
+DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90  # Fallback fuer unbekannte/neue Templates
 NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 200  # Nikto braucht laenger als ein nmap-Schnellscan
 
 _redis = redis.from_url(REDIS_URL, decode_responses=True)
@@ -105,7 +126,8 @@ async def handle_job(job: dict) -> None:
                 raise ValueError(f"{exc} -- Nikto-Konsolenausgabe: {snippet}") from exc
         else:
             args = builder(params)
-            raw_output = await run_command(args, timeout=SUBPROCESS_TIMEOUT_SECONDS)
+            template_timeout = SUBPROCESS_TIMEOUT_BY_TEMPLATE.get(template_name, DEFAULT_SUBPROCESS_TIMEOUT_SECONDS)
+            raw_output = await run_command(args, timeout=template_timeout)
             hosts = parse_nmap_xml(raw_output)
             result = {"hosts": hosts}
 

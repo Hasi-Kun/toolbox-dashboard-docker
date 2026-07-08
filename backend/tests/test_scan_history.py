@@ -40,7 +40,7 @@ def test_scan_history_only_shows_active_scan_tools(client):
     _login_with_totp_setup(client, "admin", password)
     admin_id = SessionLocal().query(User).filter_by(username="admin").first().id
 
-    _insert_execution(admin_id, "nikto-scan", True, "bookstack.{{BASE_DOMAIN}}")
+    _insert_execution(admin_id, "nikto-scan", True, "bookstack.hasikun.cc")
     _insert_execution(admin_id, "dns-lookup", True, "example.com")
 
     r = client.get("/api/v1/system/scan-history")
@@ -57,7 +57,7 @@ def test_scan_history_search_by_target(client):
     _login_with_totp_setup(client, "admin", password)
     admin_id = SessionLocal().query(User).filter_by(username="admin").first().id
 
-    _insert_execution(admin_id, "nikto-scan", True, "bookstack.{{BASE_DOMAIN}}")
+    _insert_execution(admin_id, "nikto-scan", True, "bookstack.hasikun.cc")
     _insert_execution(admin_id, "nmap-quick", True, "totally-different.example.com")
 
     r = client.get("/api/v1/system/scan-history?search=bookstack")
