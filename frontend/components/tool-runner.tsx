@@ -75,15 +75,33 @@ function buildPayload(fields: FieldSpec[], values: Record<string, FormValue>): R
   return payload;
 }
 
-export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[] }) {
+export function ToolRunner({ slug, fields, isActiveScan = false }: { slug: string; fields: FieldSpec[]; isActiveScan?: boolean }) {
   const { t } = useLanguage();
   const [values, setValues] = useState<Record<string, FormValue>>(() => initialValues(fields));
   const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scanElapsedSeconds, setScanElapsedSeconds] = useState(0);
 
   function setValue(name: string, value: FormValue) {
     setValues((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function pollScanStatus(jobId: string): Promise<unknown> {
+    // Kurze, wiederholte Anfragen statt einer einzelnen lange offenen
+    // Verbindung -- unempfindlich gegen Timeouts von Reverse-Proxies
+    // oder CDNs (z.B. Cloudflare), die bei langen aktiven Scans
+    // (bis zu mehreren Minuten) sonst die Verbindung vorzeitig kappen.
+    const start = Date.now();
+    while (true) {
+      const res = await fetch(`/api/tools/${slug}/scan/status/${jobId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Unbekannter Fehler beim Abfragen des Scan-Status");
+      if (data.status === "done") return data.result;
+      if (data.status === "error") throw new Error(data.detail ?? "Scan fehlgeschlagen");
+      setScanElapsedSeconds(Math.floor((Date.now() - start) / 1000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -91,21 +109,40 @@ export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[]
     setError(null);
     setResult(null);
     setLoading(true);
+    setScanElapsedSeconds(0);
     try {
       const payload = buildPayload(fields, values);
-      const res = await fetch(`/api/tools/${slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const detail = Array.isArray(data.detail)
-          ? data.detail.map((d: { field?: string; message?: string }) => `${d.field ?? ""}: ${d.message ?? ""}`).join("; ")
-          : data.detail ?? "Unbekannter Fehler";
-        throw new Error(detail);
+
+      if (isActiveScan) {
+        const startRes = await fetch(`/api/tools/${slug}/scan/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok) {
+          const detail = Array.isArray(startData.detail)
+            ? startData.detail.map((d: { field?: string; message?: string }) => `${d.field ?? ""}: ${d.message ?? ""}`).join("; ")
+            : startData.detail ?? "Unbekannter Fehler";
+          throw new Error(detail);
+        }
+        const scanResult = await pollScanStatus(startData.job_id);
+        setResult(scanResult);
+      } else {
+        const res = await fetch(`/api/tools/${slug}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = Array.isArray(data.detail)
+            ? data.detail.map((d: { field?: string; message?: string }) => `${d.field ?? ""}: ${d.message ?? ""}`).join("; ")
+            : data.detail ?? "Unbekannter Fehler";
+          throw new Error(detail);
+        }
+        setResult(data);
       }
-      setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -122,7 +159,11 @@ export function ToolRunner({ slug, fields }: { slug: string; fields: FieldSpec[]
 
         <button type="submit" disabled={loading} className="submit-button w-auto px-5">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {loading ? t("tool_runner.running") : t("tool_runner.run_button")}
+          {loading
+            ? isActiveScan && scanElapsedSeconds > 0
+              ? `${t("tool_runner.running")} (${scanElapsedSeconds}s)`
+              : t("tool_runner.running")
+            : t("tool_runner.run_button")}
         </button>
       </form>
 

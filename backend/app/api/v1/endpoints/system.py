@@ -245,3 +245,31 @@ async def get_scan_history(
 @router.get("/scan-history/tools")
 async def list_scan_history_tools(_admin: User = Depends(require_admin)) -> list[str]:
     return sorted(_active_scan_slugs())
+
+
+# --- Scan-Warteschlangen-Status (fuer alle eingeloggten Nutzer sichtbar) --
+#
+# Der isolierte toolbox-scanner-Container verarbeitet Jobs sequenziell
+# (ein Worker, eine Warteschlange) -- damit ein neuer aktiver Scan nicht
+# unerklaerlich lange bei "pending" haengt, zeigt das Frontend hier an,
+# was gerade laeuft und wie viele Scans noch warten.
+
+class CurrentScanJobOut(BaseModel):
+    job_id: str
+    template: str
+    target: str | None
+    started_at: str
+
+
+class ScanQueueStatusOut(BaseModel):
+    current_job: CurrentScanJobOut | None
+    queue_length: int
+
+
+@router.get("/scan-queue-status", response_model=ScanQueueStatusOut)
+async def get_scan_queue_status(_user: User = Depends(get_current_user)) -> ScanQueueStatusOut:
+    from app.core.scan_queue import get_queue_status
+
+    status = await get_queue_status()
+    current_job = CurrentScanJobOut(**status["current_job"]) if status["current_job"] else None
+    return ScanQueueStatusOut(current_job=current_job, queue_length=status["queue_length"])

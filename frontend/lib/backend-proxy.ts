@@ -11,7 +11,7 @@ const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://toolbox-backend:
  *
  * Damit bleibt das Backend intern (nur im toolbox-internal-Netzwerk
  * erreichbar), aber das Session-Cookie funktioniert trotzdem same-origin
- * unter toolbox.hasikun.cc, weil der Browser nur je mit dem Frontend
+ * unter {{TOOLBOX_DOMAIN}}, weil der Browser nur je mit dem Frontend
  * spricht.
  */
 export async function proxyToBackend(

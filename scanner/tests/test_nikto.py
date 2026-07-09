@@ -190,3 +190,35 @@ async def test_handle_job_includes_console_output_in_error_when_xml_parsing_fail
 
     assert "error" in stored["value"]
     assert "something went wrong internally" in stored["value"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_handle_job_sets_and_clears_current_job_key():
+    """Fuer die Warteschlangen-Anzeige im Frontend: waehrend ein Job
+    laeuft, muss der 'current-job'-Redis-Key gesetzt sein, danach wieder
+    geloescht."""
+    import fakeredis
+    from unittest.mock import patch
+    import app.worker as worker
+
+    captured_current_job = {}
+    fake = fakeredis.FakeAsyncRedis(decode_responses=True)
+
+    async def fake_run_command(args, timeout, cwd=None):
+        raw = await fake.get(worker.CURRENT_JOB_KEY)
+        captured_current_job["value"] = json.loads(raw) if raw else None
+        output_path = args[args.index("-output") + 1]
+        with open(output_path, "w") as f:
+            f.write(SAMPLE_XML)
+        return ""
+
+    with patch.object(worker, "_redis", fake), patch.object(worker, "run_command", new=fake_run_command):
+        job = {"job_id": "test-currentjob", "template": "nikto", "params": {"target": "example.com"}}
+        await worker.handle_job(job)
+
+        assert captured_current_job["value"] is not None
+        assert captured_current_job["value"]["job_id"] == "test-currentjob"
+        assert captured_current_job["value"]["target"] == "example.com"
+
+        after = await fake.get(worker.CURRENT_JOB_KEY)
+        assert after is None, "current-job-Key haette nach Abschluss geloescht sein muessen"

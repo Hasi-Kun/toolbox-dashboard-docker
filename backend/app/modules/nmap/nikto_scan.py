@@ -26,7 +26,17 @@ class NiktoScanModule(ToolModule):
     )
     is_active_scan = True
     requires_admin = True
-    timeout_seconds = 210
+    # timeout_seconds steuert NUR noch den alten synchronen Fallback-Pfad
+    # (run()) fuer direkte API-Aufrufer, die nicht das neue Polling-Muster
+    # (scan/start + scan/status) nutzen -- bewusst bei 5 Minuten gedeckelt,
+    # damit ein synchroner Aufruf nicht wieder eine einzelne, lange offene
+    # HTTP-Verbindung braucht (das war die urspruengliche Cloudflare/
+    # Reverse-Proxy-Timeout-Problematik). Die tatsaechliche Obergrenze fuer
+    # lange Scans (bis zu 30 Minuten) liegt jetzt beim Scanner-Container
+    # selbst (SUBPROCESS_TIMEOUT_BY_TEMPLATE in scanner/app/worker.py) --
+    # das Polling-Frontend wartet dort entsprechend laenger.
+    timeout_seconds = 300
+    scan_template = "nikto"
 
     class Input(BaseModel):
         target: str
@@ -47,18 +57,22 @@ class NiktoScanModule(ToolModule):
         finding_count: int = 0
         error: str | None = None
 
-    async def run(self, data: Input) -> Output:
-        job_id = await submit_job("nikto", {"target": data.target})
-        result = await wait_for_result(job_id, timeout=self.timeout_seconds - 5)
+    def build_scan_params(self, data: Input) -> dict:
+        return {"target": data.target}
 
-        if result is None:
-            return self.Output(target=data.target, success=False, error="Scan-Timeout oder Scanner nicht erreichbar")
-        if result.get("error"):
-            return self.Output(target=data.target, success=False, error=result["error"])
-
+    def parse_scan_result(self, data: Input, raw: dict) -> Output:
+        if raw.get("error"):
+            return self.Output(target=data.target, success=False, error=raw["error"])
         return self.Output(
             target=data.target, success=True,
-            host=result.get("host"), ip=result.get("ip"), port=result.get("port"), banner=result.get("banner"),
-            findings=[NiktoFinding(**f) for f in result.get("findings", [])],
-            finding_count=result.get("finding_count", 0),
+            host=raw.get("host"), ip=raw.get("ip"), port=raw.get("port"), banner=raw.get("banner"),
+            findings=[NiktoFinding(**f) for f in raw.get("findings", [])],
+            finding_count=raw.get("finding_count", 0),
         )
+
+    async def run(self, data: Input) -> Output:
+        job_id = await submit_job(self.scan_template, self.build_scan_params(data))
+        result = await wait_for_result(job_id, timeout=self.timeout_seconds - 5)
+        if result is None:
+            return self.Output(target=data.target, success=False, error="Scan-Timeout oder Scanner nicht erreichbar")
+        return self.parse_scan_result(data, result)

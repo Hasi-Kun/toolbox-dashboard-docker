@@ -54,6 +54,14 @@ class ToolModule(ABC):
     # eingeloggten Member. Default: fuer alle nutzbar.
     requires_admin: ClassVar[bool] = False
 
+    # Nur fuer is_active_scan-Module gesetzt: der Template-Name in der
+    # Scanner-Queue (siehe app/core/scan_queue.py). Ermoeglicht das
+    # generische Polling-Muster (POST .../scan/start + GET .../scan/status/{job_id})
+    # in app/api/v1/endpoints/tools.py, ohne dass jede lange Scan-Anfrage
+    # eine einzelne, lange offene HTTP-Verbindung braucht (die sonst an
+    # Reverse-Proxy- oder CDN-Timeouts wie bei Cloudflare scheitern kann).
+    scan_template: ClassVar[str | None] = None
+
     class Input(BaseModel):
         pass
 
@@ -63,6 +71,16 @@ class ToolModule(ABC):
     @abstractmethod
     async def run(self, data: Input) -> Output:
         """Fuehrt das Modul aus. Muss innerhalb des Timeouts fertig sein."""
+        raise NotImplementedError
+
+    def build_scan_params(self, data: Input) -> dict:
+        """Nur fuer is_active_scan-Module: baut das params-Dict, das an die
+        Scanner-Queue uebergeben wird. Default: alle Input-Felder 1:1."""
+        raise NotImplementedError
+
+    def parse_scan_result(self, data: Input, raw: dict) -> Output:
+        """Nur fuer is_active_scan-Module: wandelt das rohe Ergebnis vom
+        Scanner-Worker in das typisierte Output-Modell um."""
         raise NotImplementedError
 
     @classmethod

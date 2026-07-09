@@ -56,6 +56,7 @@ PUBLIC_RESOLVERS: dict[str, str] = {
 COMMON_DKIM_SELECTORS: list[str] = [
     "default", "google", "selector1", "selector2", "k1", "k2",
     "dkim", "mail", "smtp", "s1", "s2", "mx", "email", "sig1", "dkim1",
+    "hse1", "hse2",  # Hornetsecurity (Delegation per CNAME statt eigenem TXT-Key)
 ]
 
 

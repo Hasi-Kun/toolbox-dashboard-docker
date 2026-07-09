@@ -1,6 +1,6 @@
 import { TOOL_FORMS, type FieldSpec } from "@/lib/tool-forms";
 
-type Tool = { slug: string; name: string; description: string; category: string };
+type Tool = { slug: string; name: string; description: string; category: string; is_active_scan?: boolean };
 
 /** Zerlegt eine Eingabezeile in Tokens, respektiert "..."-Anfuehrungszeichen
  * fuer Werte mit Leerzeichen. */
@@ -79,11 +79,6 @@ export async function executeCommand(
     return { lines: [`Unbekannter Befehl: '${command}'. 'help' fuer Hilfe, 'list' fuer alle Tool-Befehle.`] };
   }
 
-  if (toolMeta.category === "nmap" || (toolMeta as unknown as { is_active_scan?: boolean }).is_active_scan) {
-    // Aktive Scans koennen 1-2 Minuten dauern -- im CLI-Fenster trotzdem erlaubt,
-    // nur ein Hinweis vorab.
-  }
-
   const payload: Record<string, unknown> = {};
   fields.forEach((field, i) => {
     if (i < args.length) {
@@ -92,6 +87,45 @@ export async function executeCommand(
       payload[field.name] = field.default;
     }
   });
+
+  // Aktive Scans (nmap/Nikto) koennen mehrere Minuten dauern -- statt
+  // einer einzelnen, lange offenen Verbindung (anfaellig fuer Reverse-
+  // Proxy-/CDN-Timeouts) wird hier ein Scan angestossen und das Ergebnis
+  // per kurzen, wiederholten Anfragen abgefragt.
+  if (toolMeta.is_active_scan) {
+    try {
+      const startRes = await fetch(`/api/tools/${lower}/scan/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) {
+        const detail = Array.isArray(startData.detail)
+          ? startData.detail.map((d: { field?: string; message?: string }) => `${d.field ?? ""}: ${d.message ?? ""}`).join("; ")
+          : startData.detail ?? "Fehler";
+        return { lines: [`Fehler: ${detail}`] };
+      }
+
+      const jobId = startData.job_id;
+      while (true) {
+        const statusRes = await fetch(`/api/tools/${lower}/scan/status/${jobId}`);
+        const statusData = await statusRes.json();
+        if (!statusRes.ok) {
+          return { lines: [`Fehler: ${statusData.detail ?? "Unbekannter Fehler beim Abfragen des Scan-Status"}`] };
+        }
+        if (statusData.status === "done") {
+          return { lines: formatResult(statusData.result) };
+        }
+        if (statusData.status === "error") {
+          return { lines: [`Fehler: ${statusData.detail ?? "Scan fehlgeschlagen"}`] };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    } catch {
+      return { lines: ["Fehler: Backend nicht erreichbar."] };
+    }
+  }
 
   try {
     const res = await fetch(`/api/tools/${lower}`, {

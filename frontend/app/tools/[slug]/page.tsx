@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { ToolRunner } from "@/components/tool-runner";
 import { ToolConsole } from "@/components/tool-console";
+import { ScanQueueStatus } from "@/components/scan-queue-status";
 import { TOOL_FORMS } from "@/lib/tool-forms";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
@@ -122,9 +123,15 @@ export default function ToolPage() {
               </div>
               <p className="mt-1 text-sm text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
 
+              {tool.is_active_scan && (
+                <div className="mt-4">
+                  <ScanQueueStatus />
+                </div>
+              )}
+
               <div className="mt-6">
                 {fields ? (
-                  <ToolRunner slug={tool.slug} fields={fields} />
+                  <ToolRunner slug={tool.slug} fields={fields} isActiveScan={tool.is_active_scan} />
                 ) : (
                   <p className="rounded-lg border border-base-border bg-base-elevated px-4 py-3 text-sm text-ink-muted">
                     Fuer dieses Tool gibt es noch kein Formular. Es ist aber schon ueber die API nutzbar:{" "}

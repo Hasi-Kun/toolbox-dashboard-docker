@@ -15,6 +15,7 @@ class NmapServiceDetectionModule(ToolModule):
     description = f"Ermittelt Dienst- und Versionsinformationen fuer bis zu {MAX_PORTS} Ports (nmap -sV)."
     is_active_scan = True
     timeout_seconds = 75
+    scan_template = "service-detection"
 
     class Input(BaseModel):
         target: str
@@ -43,12 +44,17 @@ class NmapServiceDetectionModule(ToolModule):
         hosts: list[NmapHost] = []
         error: str | None = None
 
-    async def run(self, data: Input) -> Output:
-        job_id = await submit_job("service-detection", {"target": data.target, "ports": data.ports})
-        result = await wait_for_result(job_id, timeout=self.timeout_seconds - 5)
+    def build_scan_params(self, data: Input) -> dict:
+        return {"target": data.target, "ports": data.ports}
 
+    def parse_scan_result(self, data: Input, raw: dict) -> Output:
+        if raw.get("error"):
+            return self.Output(target=data.target, success=False, error=raw["error"])
+        return self.Output(target=data.target, success=True, hosts=raw.get("hosts", []))
+
+    async def run(self, data: Input) -> Output:
+        job_id = await submit_job(self.scan_template, self.build_scan_params(data))
+        result = await wait_for_result(job_id, timeout=self.timeout_seconds - 5)
         if result is None:
             return self.Output(target=data.target, success=False, error="Scan-Timeout oder Scanner nicht erreichbar")
-        if result.get("error"):
-            return self.Output(target=data.target, success=False, error=result["error"])
-        return self.Output(target=data.target, success=True, hosts=result.get("hosts", []))
+        return self.parse_scan_result(data, result)

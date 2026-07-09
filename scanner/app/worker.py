@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import tempfile
+from datetime import datetime, timezone
 
 import redis.asyncio as redis
 
@@ -34,19 +35,25 @@ RESULT_TTL_SECONDS = 300
 # der Scanner selbst sauber "Timeout" zurueckmelden kann, BEVOR das
 # Backend seinerseits aufgibt (sonst kommt statt einer klaren Timeout-
 # Meldung ein nichtssagendes "Scanner nicht erreichbar" beim Nutzer an).
+#
+# Auf bis zu 30 Minuten fuer die schwersten Tools angehoben (vorher
+# einige Minuten) -- seit der Umstellung auf das Polling-Muster
+# (POST .../scan/start + GET .../scan/status/{job_id}) ist eine lange
+# Laufzeit kein Problem mehr fuer Reverse-Proxy-/CDN-Timeouts, da keine
+# einzelne HTTP-Verbindung mehr so lange offen gehalten werden muss.
 SUBPROCESS_TIMEOUT_BY_TEMPLATE: dict[str, int] = {
     "quick": 30,
     "top-ports": 50,
-    "service-detection": 65,
-    "os-detection": 50,
-    "aggressive": 140,
-    "udp": 90,
+    "service-detection": 80,
+    "os-detection": 80,
+    "aggressive": 850,
+    "udp": 280,
     "host-discovery": 15,
-    "full-port-scan": 290,
-    "vuln-scan": 170,
+    "full-port-scan": 1750,
+    "vuln-scan": 1750,
 }
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90  # Fallback fuer unbekannte/neue Templates
-NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 200  # Nikto braucht laenger als ein nmap-Schnellscan
+NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 1750  # Nikto kann bei grossen Sites sehr lange dauern
 
 _redis = redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -88,12 +95,28 @@ async def run_command(args: list[str], timeout: int, cwd: str | None = None) -> 
     return stdout_bytes.decode("utf-8", errors="replace")
 
 
+CURRENT_JOB_KEY = "scanner:current-job"
+CURRENT_JOB_TTL_SECONDS = 2100  # Sicherheitsnetz: falls der Worker mitten im Job abstuerzt,
+# soll der Eintrag nicht fuer immer "faelschlich beschaeftigt" anzeigen.
+
+
 async def handle_job(job: dict) -> None:
     job_id = job["job_id"]
     template_name = job["template"]
     params = job.get("params", {})
 
     logger.info("Job %s: Template=%s Ziel=%s", job_id, template_name, params.get("target"))
+
+    # Fuer die Warteschlangen-Anzeige im Frontend: welcher Job laeuft
+    # gerade, seit wann, gegen welches Ziel.
+    await _redis.set(
+        CURRENT_JOB_KEY,
+        json.dumps({
+            "job_id": job_id, "template": template_name, "target": params.get("target"),
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }),
+        ex=CURRENT_JOB_TTL_SECONDS,
+    )
 
     result: dict = {}
     nikto_output_path: str | None = None
@@ -149,6 +172,9 @@ async def handle_job(job: dict) -> None:
                 os.unlink(nikto_output_path)
             except OSError:
                 pass
+        # "Aktuell laufender Job" zuruecksetzen, damit die Warteschlangen-
+        # Anzeige im Frontend korrekt zeigt, dass wieder nichts laeuft.
+        await _redis.delete(CURRENT_JOB_KEY)
 
     await _redis.set(f"scanner:result:{job_id}", json.dumps(result), ex=RESULT_TTL_SECONDS)
 

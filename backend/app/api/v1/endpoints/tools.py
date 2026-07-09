@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.rate_limit import enforce_rate_limit
+from app.core.scan_queue import delete_job_context, get_job_context, peek_result, stash_job_context, submit_job
 from app.models.user import ToolExecution, User
 from app.modules import get_registry
 
@@ -130,3 +131,108 @@ async def run_tool(
     result_dict = result.model_dump()
     _log_execution(db, user.id, slug, success=True, input_data=payload, output_data=result_dict)
     return result_dict
+
+
+# --- Polling-Muster fuer lange aktive Scans -------------------------------
+#
+# Statt EINER einzelnen HTTP-Anfrage, die fuer die gesamte Scan-Dauer
+# (bis zu 300s bei full-port-scan) offen bleibt, wird der Scan hier
+# angestossen (gibt SOFORT eine job_id zurueck) und das Ergebnis danach
+# per kurzen, wiederholten Anfragen abgefragt. Das macht jede einzelne
+# HTTP-Anfrage kurz und unempfindlich gegen Timeouts von Reverse-Proxies
+# oder CDNs (z.B. Cloudflare, das bei proxied Verbindungen ein eigenes,
+# vom eigenen Server-Timeout unabhaengiges Zeitlimit hat).
+
+
+def _check_scan_permissions_and_validate(slug: str, payload: dict, user: User):
+    """Gemeinsame Pruefungen fuer den synchronen und den Polling-Pfad:
+    Tool existiert, ist ein Scan-Tool mit Polling-Unterstuetzung, Admin-
+    Berechtigung, Eingabe-Validierung. Gibt (module, input_data) zurueck
+    oder wirft HTTPException."""
+    registry = get_registry()
+    module_cls = registry.get(slug)
+    if module_cls is None:
+        raise HTTPException(status_code=404, detail=f"Unbekanntes Tool: {slug}")
+    if not module_cls.is_active_scan or module_cls.scan_template is None:
+        raise HTTPException(status_code=400, detail="Dieses Tool unterstuetzt kein Scan-Polling.")
+    if module_cls.requires_admin and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Dieses Tool ist nur fuer Administratoren freigeschaltet.")
+
+    try:
+        input_data = module_cls.Input(**payload)
+    except ValidationError as exc:
+        errors = [
+            {"field": ".".join(str(p) for p in err["loc"]), "message": err["msg"]}
+            for err in exc.errors()
+        ]
+        raise HTTPException(status_code=422, detail=errors) from exc
+
+    return module_cls(), input_data
+
+
+@router.post("/tools/{slug}/scan/start", tags=["tools"])
+async def start_scan(
+    slug: str,
+    payload: dict,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> dict:
+    module, input_data = _check_scan_permissions_and_validate(slug, payload, user)
+    module_cls = type(module)
+
+    await enforce_rate_limit(request, bucket=module_cls.category, limit=settings.scan_rate_limit_per_minute)
+    if slug in _PER_SLUG_SCAN_LIMITS:
+        await enforce_rate_limit(request, bucket=f"tool:{slug}", limit=_PER_SLUG_SCAN_LIMITS[slug])
+
+    job_id = await submit_job(module_cls.scan_template, module.build_scan_params(input_data))
+    await stash_job_context(job_id, slug, payload, user.id)
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/tools/{slug}/scan/status/{job_id}", tags=["tools"])
+async def scan_status(
+    slug: str,
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    registry = get_registry()
+    module_cls = registry.get(slug)
+    if module_cls is None:
+        raise HTTPException(status_code=404, detail=f"Unbekanntes Tool: {slug}")
+
+    context = await get_job_context(job_id)
+    if context is None:
+        # Entweder noch nicht fertig UND noch nie ein Kontext gespeichert
+        # (sollte nicht vorkommen) -- oder das Ergebnis wurde bereits
+        # einmal abgeholt (Kontext + Ergebnis werden nach der ersten
+        # erfolgreichen Abfrage geloescht, siehe unten).
+        raw = await peek_result(job_id)
+        if raw is None:
+            return {"status": "pending"}
+        # Kontext fehlt (z.B. abgelaufen), aber ein Ergebnis kam trotzdem
+        # noch rein -- ohne die urspruengliche Eingabe koennen wir es
+        # nicht sauber typisiert zurueckgeben.
+        return {"status": "error", "detail": "Scan-Kontext nicht mehr verfuegbar (abgelaufen)."}
+
+    if context.get("user_id") != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Dieser Scan gehoert einem anderen Nutzer.")
+
+    raw = await peek_result(job_id)
+    if raw is None:
+        return {"status": "pending"}
+
+    module = module_cls()
+    try:
+        input_data = module_cls.Input(**context["input"])
+        output = module.parse_scan_result(input_data, raw)
+        result_dict = output.model_dump()
+        success = bool(result_dict.get("success"))
+        _log_execution(
+            db, user.id, slug, success=success, input_data=context["input"],
+            output_data=result_dict if success else None,
+            error_message=result_dict.get("error") if not success else None,
+        )
+        return {"status": "done", "result": result_dict}
+    finally:
+        await delete_job_context(job_id)

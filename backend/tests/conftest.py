@@ -17,6 +17,7 @@ def client():
 
     import app.core.db as db_module
     import app.core.rate_limit as rate_limit_module
+    import app.core.scan_queue as scan_queue_module
     import app.core.sessions as sessions_module
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
@@ -41,6 +42,7 @@ def client():
     fake_redis = fakeredis.FakeAsyncRedis(decode_responses=True)
     sessions_module._redis = fake_redis
     rate_limit_module._redis_client = fake_redis
+    scan_queue_module._redis = fake_redis
 
     from app.main import app
 
