@@ -165,3 +165,20 @@ Do not deploy directly from repository without running the installer.
 
 All domain values are placeholders and must be replaced during setup.
 
+---
+
+## Backup
+Best practice: use offsite backups!
+
+```bash
+chmod +x /data/toolbox/ops/backup-database.sh
+crontab -e
+```
+
+Add the following line to backup:
+
+```
+0 3 * * * /data/toolbox/ops/backup-database.sh >> /var/log/toolbox-backup.log 2>&1
+```
+
+<img width="885" height="500" alt="monke_backup_meme" src="https://github.com/user-attachments/assets/77643c8e-927b-424a-8de9-a0ac672a6a4e" />
