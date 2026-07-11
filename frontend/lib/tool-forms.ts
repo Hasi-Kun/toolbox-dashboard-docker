@@ -1,4 +1,4 @@
-export type FieldType = "text" | "number" | "checkbox" | "select" | "int-list" | "string-list" | "textarea" | "checkbox-group" | "header-list";
+export type FieldType = "text" | "password" | "number" | "checkbox" | "select" | "int-list" | "string-list" | "textarea" | "checkbox-group" | "header-list";
 
 export interface FieldOption {
   value: string;
@@ -45,6 +45,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
     { name: "domain", label: "Domain", type: "text", placeholder: "example.com" },
     { name: "record_type", label: "Record-Typ", type: "select", options: RECORD_TYPE_OPTIONS, default: "A" },
   ],
+  "zone-transfer-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 
   // --- Mail ---
   "spf-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
@@ -81,6 +82,17 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "security-headers": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "robots-txt": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "security-txt": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "tls-cipher-audit": [
+    { name: "host", label: "Host", type: "text", placeholder: "example.com" },
+    { name: "port", label: "Port", type: "number", default: 443 },
+  ],
+  "cors-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://api.example.com" }],
+  "waf-detector": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "open-redirect-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com/login" }],
+  "cookie-security-analyzer": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "http-methods-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
+  "password-breach-check": [{ name: "password", label: "Passwort (wird nie gespeichert)", type: "password", placeholder: "zu pruefendes Passwort" }],
+  "jwt-security-analyzer": [{ name: "token", label: "JWT", type: "textarea", placeholder: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }],
 
   // --- Nmap ---
   "nmap-quick": [{ name: "target", label: "Ziel", type: "text", placeholder: "example.com" }],
@@ -217,8 +229,15 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "subdomain-bruteforce": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "shodan-internetdb": [{ name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" }],
+  "sri-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
   "typosquat-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "subdomain-takeover-checker": [{ name: "subdomain", label: "Subdomain", type: "text", placeholder: "forgotten.example.com" }],
+  "cloud-bucket-finder": [{ name: "name", label: "Firmen-/Projektname", type: "text", placeholder: "meinefirma" }],
+  "git-secrets-scanner": [
+    { name: "query", label: "Suchbegriff (Domain/Firmenname)", type: "text", placeholder: "meinefirma.de" },
+    { name: "github_token", label: "GitHub-Token (eigener, wird nie gespeichert)", type: "password", placeholder: "ghp_..." },
+  ],
   "google-dork-generator": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "tech-fingerprint": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 };

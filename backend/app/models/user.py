@@ -32,6 +32,11 @@ class User(Base):
     # in Phase 3. Siehe docs/ARCHITECTURE.md fuer geplante Haertung.
     totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Fuer die "Secrets-Rotation-Erinnerung": wann wurde das TOTP-Secret
+    # zuletzt (neu) eingerichtet -- Admins sehen so, welche Konten ihr
+    # 2FA-Secret schon sehr lange nicht mehr rotiert haben. Nullable,
+    # da bestehende Nutzer beim Migrieren keinen bekannten Zeitpunkt haben.
+    totp_rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

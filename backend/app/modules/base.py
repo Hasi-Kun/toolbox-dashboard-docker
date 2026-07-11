@@ -62,6 +62,13 @@ class ToolModule(ABC):
     # Reverse-Proxy- oder CDN-Timeouts wie bei Cloudflare scheitern kann).
     scan_template: ClassVar[str | None] = None
 
+    # Fuer Tools, die sensible Eingaben entgegennehmen (z.B. ein zu
+    # pruefendes Passwort) -- verhindert, dass die Eingabe in der
+    # Tool-Ausfuehrungs-Historie (tool_executions-Tabelle) landet. Das
+    # Ergebnis selbst wird trotzdem protokolliert, nur die Eingabe wird
+    # durch einen Platzhalter ersetzt.
+    redact_input_in_history: ClassVar[bool] = False
+
     class Input(BaseModel):
         pass
 

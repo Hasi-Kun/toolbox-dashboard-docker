@@ -17,12 +17,29 @@ _CHECKED_HEADERS: list[tuple[str, int, str]] = [
 _MAX_SCORE = sum(weight for _, weight, _ in _CHECKED_HEADERS) + 10  # +10 fuer "kein Server-Header"
 
 
+def _compute_grade(score: int, max_score: int) -> str:
+    if max_score == 0:
+        return "F"
+    percent = (score / max_score) * 100
+    if percent >= 100:
+        return "A+"
+    if percent >= 90:
+        return "A"
+    if percent >= 80:
+        return "B"
+    if percent >= 65:
+        return "C"
+    if percent >= 50:
+        return "D"
+    return "F"
+
+
 @register_module
 class SecurityHeadersModule(ToolModule):
     slug = "security-headers"
     category = "security"
     name = "Security Header Check"
-    description = "Prueft sicherheitsrelevante HTTP-Response-Header und vergibt einen Score."
+    description = "Prueft sicherheitsrelevante HTTP-Response-Header und vergibt einen Score inkl. Note (A+ bis F, wie securityheaders.com)."
     is_active_scan = False
     timeout_seconds = 10
 
@@ -47,6 +64,7 @@ class SecurityHeadersModule(ToolModule):
         status_code: int | None = None
         score: int | None = None
         max_score: int = _MAX_SCORE
+        grade: str | None = None
         present_headers: dict[str, str] = {}
         missing_headers: list[str] = []
         warnings: list[str] = []
@@ -89,6 +107,7 @@ class SecurityHeadersModule(ToolModule):
             success=True,
             status_code=response.status_code,
             score=score,
+            grade=_compute_grade(score, _MAX_SCORE),
             present_headers=present,
             missing_headers=missing,
             warnings=warnings,

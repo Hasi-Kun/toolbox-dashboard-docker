@@ -17,6 +17,7 @@ type UserRow = {
   invite_quota: number;
   is_premium: boolean;
   premium_badge_color: string;
+  totp_rotated_at: string | null;
 };
 
 export default function UsersSettingsPage() {
@@ -202,6 +203,7 @@ export default function UsersSettingsPage() {
                   <th className="px-4 py-3">{t("users.col_role")}</th>
                   <th className="px-4 py-3">{t("users.col_status")}</th>
                   <th className="px-4 py-3">{t("users.col_2fa")}</th>
+                  <th className="px-4 py-3">{t("users.col_2fa_age")}</th>
                   <th className="px-4 py-3">{t("users.col_invite_quota")}</th>
                   <th className="px-4 py-3">{t("users.col_premium")}</th>
                   <th className="px-4 py-3 text-right">{t("users.col_actions")}</th>
@@ -226,6 +228,18 @@ export default function UsersSettingsPage() {
                       <span className={user.has_2fa ? "text-signal" : "text-warn"}>
                         {user.has_2fa ? t("users.2fa_set_up") : t("users.2fa_pending")}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {(() => {
+                        if (!user.totp_rotated_at) return <span className="text-ink-muted">—</span>;
+                        const days = Math.floor((Date.now() - new Date(user.totp_rotated_at).getTime()) / 86400000);
+                        const stale = days >= 180;
+                        return (
+                          <span className={stale ? "text-warn" : "text-ink-muted"} title={stale ? t("users.totp_stale_warning") : undefined}>
+                            {days} {t("users.days_ago")}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <input

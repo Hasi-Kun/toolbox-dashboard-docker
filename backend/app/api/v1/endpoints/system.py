@@ -273,3 +273,41 @@ async def get_scan_queue_status(_user: User = Depends(get_current_user)) -> Scan
     status = await get_queue_status()
     current_job = CurrentScanJobOut(**status["current_job"]) if status["current_job"] else None
     return ScanQueueStatusOut(current_job=current_job, queue_length=status["queue_length"])
+
+
+# --- Sicherheits-Hygiene-Uebersicht (admin-only) --------------------------
+#
+# Zeigt Konten, deren 2FA-Secret schon sehr lange nicht mehr rotiert
+# wurde -- rein informativ, keine Erzwingung. Alte, nie rotierte Secrets
+# sind ein (kleines, aber reales) Risiko: je laenger ein Secret im
+# Umlauf ist, desto mehr Gelegenheiten gab es fuer eine Kompromittierung.
+
+STALE_TOTP_THRESHOLD_DAYS = 180
+
+
+class StaleTotpUserOut(BaseModel):
+    username: str
+    days_since_rotation: int | None  # None = nie rotiert (kein bekannter Zeitpunkt)
+
+
+class SecurityHygieneOut(BaseModel):
+    stale_totp_threshold_days: int
+    users_with_stale_totp: list[StaleTotpUserOut]
+
+
+@router.get("/security-hygiene", response_model=SecurityHygieneOut)
+async def get_security_hygiene(db: Session = Depends(get_db), _admin: User = Depends(require_admin)) -> SecurityHygieneOut:
+    now = datetime.now(timezone.utc)
+    stale_users = []
+    for user in db.query(User).filter(User.totp_enabled.is_(True)).all():
+        if user.totp_rotated_at is None:
+            stale_users.append(StaleTotpUserOut(username=user.username, days_since_rotation=None))
+            continue
+        rotated_at = user.totp_rotated_at
+        if rotated_at.tzinfo is None:
+            rotated_at = rotated_at.replace(tzinfo=timezone.utc)
+        days = (now - rotated_at).days
+        if days >= STALE_TOTP_THRESHOLD_DAYS:
+            stale_users.append(StaleTotpUserOut(username=user.username, days_since_rotation=days))
+
+    return SecurityHygieneOut(stale_totp_threshold_days=STALE_TOTP_THRESHOLD_DAYS, users_with_stale_totp=stale_users)

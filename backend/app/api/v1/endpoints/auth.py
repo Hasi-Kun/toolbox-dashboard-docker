@@ -9,7 +9,7 @@ from app.api.deps import get_current_user
 from app.core.audit import get_client_ip, log_audit_event
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.rate_limit import enforce_rate_limit
+from app.core.rate_limit import clear_failed_login_count, enforce_account_lockout, enforce_rate_limit, record_failed_login
 from app.core.security import hash_password, verify_password
 from app.core.sessions import (
     create_pending,
@@ -108,6 +108,11 @@ class MeResponse(BaseModel):
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     await enforce_rate_limit(request, bucket="auth-login", limit=settings.login_rate_limit_per_minute)
+    # Zusaetzlich zum IP-basierten Limit: Konto-Sperre nach zu vielen
+    # fehlgeschlagenen Versuchen, UNABHAENGIG von der IP -- schuetzt
+    # gegen Brute-Force mit rotierenden IPs (z.B. Botnet), das das reine
+    # IP-Limit sonst umgehen koennte.
+    await enforce_account_lockout(payload.username)
 
     user = db.query(User).filter(User.username == payload.username).first()
     ip = get_client_ip(request)
@@ -116,9 +121,11 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     # Passwort -- verhindert, dass ein Angreifer gueltige Usernamen erraten kann.
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
         log_audit_event(db, "login_password", success=False, username=payload.username, ip_address=ip)
+        await record_failed_login(payload.username)
         raise HTTPException(status_code=401, detail="Ungueltiger Benutzername oder Passwort")
 
     log_audit_event(db, "login_password", success=True, username=user.username, ip_address=ip)
+    await clear_failed_login_count(user.username)
     pending_id = await create_pending(user.id, "login")
 
     methods: list[str] = []
@@ -249,6 +256,7 @@ async def verify_totp_setup(payload: TotpVerifyRequest, request: Request, respon
 
     user.totp_secret = secret
     user.totp_enabled = True
+    user.totp_rotated_at = datetime.now(timezone.utc)
     db.add(user)
     db.commit()
 

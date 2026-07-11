@@ -213,6 +213,17 @@ function FormField({
         />
       )}
 
+      {field.type === "password" && (
+        <input
+          type="password"
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          autoComplete="off"
+          className="input"
+        />
+      )}
+
       {field.type === "textarea" && (
         <textarea
           value={value as string}

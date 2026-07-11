@@ -26,6 +26,7 @@ class UserOut(BaseModel):
     invite_quota: int
     is_premium: bool
     premium_badge_color: str
+    totp_rotated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

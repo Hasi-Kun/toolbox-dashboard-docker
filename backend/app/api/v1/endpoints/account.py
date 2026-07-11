@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
@@ -12,7 +13,7 @@ from app.core.db import get_db
 from app.core.audit import get_client_ip, log_audit_event
 from app.core.rate_limit import enforce_rate_limit
 from app.core.security import hash_password, verify_password
-from app.core.sessions import delete_transient, get_transient, store_transient
+from app.core.sessions import delete_transient, get_transient, invalidate_all_sessions, store_transient
 from app.core.totp import generate_secret, provisioning_uri, qr_code_data_uri, verify_code
 from app.core.webauthn_helpers import build_registration_options, verify_registration
 from app.models.user import Favorite, ToolExecution, User, WebAuthnCredential
@@ -104,8 +105,20 @@ async def change_password(
     user.password_hash = hash_password(payload.new_password)
     db.add(user)
     db.commit()
-    log_audit_event(db, "password_changed", success=True, username=user.username, ip_address=get_client_ip(request))
-    return {"success": True}
+
+    # Alle ANDEREN aktiven Sessions dieses Nutzers sofort beenden -- falls
+    # das Konto kompromittiert war und deshalb das Passwort geaendert
+    # wird, soll ein Angreifer mit einer alten Session nicht einfach
+    # eingeloggt bleiben. Die AKTUELLE Session (dieser Request) bleibt
+    # bewusst unangetastet, damit sich der Nutzer nicht selbst aussperrt.
+    current_session_id = request.cookies.get(settings.session_cookie_name)
+    revoked_count = await invalidate_all_sessions(user.id, except_session_id=current_session_id)
+
+    log_audit_event(
+        db, "password_changed", success=True, username=user.username, ip_address=get_client_ip(request),
+        detail=f"{revoked_count} andere Session(s) wurden invalidiert" if revoked_count else None,
+    )
+    return {"success": True, "other_sessions_revoked": revoked_count}
 
 
 # --- 2FA-Uebersicht ---------------------------------------------------------
@@ -138,6 +151,7 @@ async def verify_totp_setup(
 
     user.totp_secret = transient["secret"]
     user.totp_enabled = True
+    user.totp_rotated_at = datetime.now(timezone.utc)
     db.add(user)
     db.commit()
     await delete_transient(f"totp_setup:{user.id}")

@@ -34,6 +34,8 @@ class DmarcCheckModule(ToolModule):
         aggregate_reports: list[str]
         forensic_reports: list[str]
         warnings: list[str]
+        strength_score: int = 0
+        strength_label: str = "kein DMARC"
         error: str | None
 
     async def run(self, data: Input) -> Output:
@@ -81,13 +83,38 @@ class DmarcCheckModule(ToolModule):
         if percentage < 100:
             warnings.append(f"Nur {percentage}% der Mails werden gemaess Policy behandelt.")
 
+        aggregate_reports = cls._parse_reports(tags.get("rua"))
+        strength_score, strength_label = cls._compute_strength(policy, percentage, bool(aggregate_reports))
+
         return cls.Output(
             domain=domain, found=True, raw_record=raw, policy=policy,
             subdomain_policy=subdomain_policy, percentage=percentage,
-            aggregate_reports=cls._parse_reports(tags.get("rua")),
+            aggregate_reports=aggregate_reports,
             forensic_reports=cls._parse_reports(tags.get("ruf")),
-            warnings=warnings, error=None,
+            warnings=warnings, strength_score=strength_score, strength_label=strength_label, error=None,
         )
+
+    @staticmethod
+    def _compute_strength(policy: str | None, percentage: int, has_aggregate_reports: bool) -> tuple[int, str]:
+        """Grobe Staerke-Einschaetzung: p=reject > quarantine > none,
+        skaliert mit dem pct-Anteil, kleiner Bonus fuer aktives
+        Reporting (rua) -- rein informativ, kein Ersatz fuer eine
+        vollstaendige Bewertung."""
+        base_by_policy = {"reject": 90, "quarantine": 60, "none": 30}
+        base = base_by_policy.get(policy or "", 0)
+        score = round(base * (percentage / 100))
+        if has_aggregate_reports:
+            score = min(100, score + 10)
+
+        if score >= 80:
+            label = "stark"
+        elif score >= 50:
+            label = "mittel"
+        elif score > 0:
+            label = "schwach"
+        else:
+            label = "kein DMARC"
+        return score, label
 
     def _empty(
         self, domain: str, warnings: list[str] | None = None, error: str | None = None

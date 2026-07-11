@@ -111,6 +111,9 @@ async def run_tool(
         raise HTTPException(status_code=422, detail=errors) from exc
 
     module = module_cls()
+    # Sensible Eingaben (z.B. ein zu pruefendes Passwort) duerfen unter
+    # keinen Umstaenden in der Historie landen -- auch nicht im Fehlerfall.
+    logged_input = {"redacted": True} if module_cls.redact_input_in_history else payload
     # +5s Puffer: das Modul soll seinen EIGENEN Timeout (z.B. httpx-Client)
     # zuerst ausloesen und sauber abfangen koennen. Ohne Puffer laufen
     # beide Timeouts im Wettlauf gegeneinander -- gewinnt der aeussere
@@ -121,15 +124,15 @@ async def run_tool(
     try:
         result = await asyncio.wait_for(module.run(input_data), timeout=timeout)
     except asyncio.TimeoutError as exc:
-        _log_execution(db, user.id, slug, success=False, input_data=payload, error_message="Zeitueberschreitung bei der Ausfuehrung.")
+        _log_execution(db, user.id, slug, success=False, input_data=logged_input, error_message="Zeitueberschreitung bei der Ausfuehrung.")
         raise HTTPException(status_code=504, detail="Zeitueberschreitung bei der Ausfuehrung.") from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Fehler beim Ausfuehren von Modul '%s'", slug)
-        _log_execution(db, user.id, slug, success=False, input_data=payload, error_message="Interner Fehler beim Ausfuehren des Tools.")
+        _log_execution(db, user.id, slug, success=False, input_data=logged_input, error_message="Interner Fehler beim Ausfuehren des Tools.")
         raise HTTPException(status_code=500, detail="Interner Fehler beim Ausfuehren des Tools.") from exc
 
     result_dict = result.model_dump()
-    _log_execution(db, user.id, slug, success=True, input_data=payload, output_data=result_dict)
+    _log_execution(db, user.id, slug, success=True, input_data=logged_input, output_data=result_dict)
     return result_dict
 
 
@@ -228,8 +231,9 @@ async def scan_status(
         output = module.parse_scan_result(input_data, raw)
         result_dict = output.model_dump()
         success = bool(result_dict.get("success"))
+        logged_input = {"redacted": True} if module_cls.redact_input_in_history else context["input"]
         _log_execution(
-            db, user.id, slug, success=success, input_data=context["input"],
+            db, user.id, slug, success=success, input_data=logged_input,
             output_data=result_dict if success else None,
             error_message=result_dict.get("error") if not success else None,
         )

@@ -29,6 +29,12 @@ async def create_session(user_id: int) -> str:
         json.dumps({"user_id": user_id}),
         ex=settings.session_ttl_seconds,
     )
+    # Zusaetzlich in einem Set pro Nutzer vermerken -- ermoeglicht
+    # invalidate_all_sessions() unten (z.B. bei einer Passwort-Aenderung
+    # sollen ALLE anderen aktiven Sessions dieses Nutzers sofort
+    # ungueltig werden, nicht nur die aktuelle).
+    await _redis.sadd(f"user-sessions:{user_id}", session_id)
+    await _redis.expire(f"user-sessions:{user_id}", settings.session_ttl_seconds)
     return session_id
 
 
@@ -40,7 +46,29 @@ async def get_session_user_id(session_id: str) -> int | None:
 
 
 async def delete_session(session_id: str) -> None:
+    raw = await _redis.get(f"session:{session_id}")
+    if raw is not None:
+        user_id = json.loads(raw)["user_id"]
+        await _redis.srem(f"user-sessions:{user_id}", session_id)
     await _redis.delete(f"session:{session_id}")
+
+
+async def invalidate_all_sessions(user_id: int, except_session_id: str | None = None) -> int:
+    """Beendet ALLE aktiven Sessions eines Nutzers sofort -- fuer
+    sicherheitskritische Ereignisse wie eine Passwort-Aenderung (falls
+    das Konto kompromittiert war, soll ein Angreifer mit einer alten
+    Session sofort ausgesperrt werden). `except_session_id` laesst
+    optional die AKTUELLE Session des Nutzers unangetastet (er soll sich
+    nach der eigenen Passwort-Aenderung nicht selbst ausloggen)."""
+    session_ids = await _redis.smembers(f"user-sessions:{user_id}")
+    revoked = 0
+    for session_id in session_ids:
+        if session_id == except_session_id:
+            continue
+        await _redis.delete(f"session:{session_id}")
+        await _redis.srem(f"user-sessions:{user_id}", session_id)
+        revoked += 1
+    return revoked
 
 
 # --- Pending-Logins (zwischen Passwort-Check und 2FA-Abschluss) -----------
