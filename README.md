@@ -168,7 +168,6 @@ All domain values are placeholders and must be replaced during setup.
 ---
 
 ## Backup
-Best practice: use offsite backups!
 
 ```bash
 chmod +x /data/toolbox/ops/backup-database.sh
@@ -180,5 +179,11 @@ Add the following line to backup:
 ```
 0 3 * * * /data/toolbox/ops/backup-database.sh >> /var/log/toolbox-backup.log 2>&1
 ```
+
+Backup Recommendation
+
+While the application may provide backup functionality, it is strongly recommended to implement an independent backup strategy for production environments.
+
+For improved reliability and disaster recovery, use regular off-site backups (for example to a separate server, NAS, or cloud storage). Backups should be automated, verified periodically, and stored independently of the application host to protect against hardware failure, accidental deletion, or other catastrophic events.
 
 <img width="885" height="500" alt="monke_backup_meme" src="https://github.com/user-attachments/assets/77643c8e-927b-424a-8de9-a0ac672a6a4e" />
