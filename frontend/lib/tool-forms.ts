@@ -88,6 +88,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   ],
   "cors-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://api.example.com" }],
   "waf-detector": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "reflected-input-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com/search" }],
   "open-redirect-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com/login" }],
   "cookie-security-analyzer": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "http-methods-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
@@ -145,6 +146,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
       default: ["md5", "sha1", "sha256", "sha512"],
     },
   ],
+  "ntlm-hash-generator": [{ name: "password", label: "Passwort (wird nie gespeichert)", type: "password", placeholder: "zu hashendes Passwort" }],
   "base64-tool": [
     { name: "text", label: "Text", type: "textarea" },
     { name: "operation", label: "Operation", type: "select", options: [{ value: "encode", label: "Encode" }, { value: "decode", label: "Decode" }], default: "encode" },

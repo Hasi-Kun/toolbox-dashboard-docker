@@ -12,6 +12,7 @@ from app.modules.utilities import (  # noqa: F401
     hash_identifier,
     ip_geolocation,
     jwt_decoder,
+    ntlm_hash,
     password_generator,
     timestamp_converter,
     uuid_generator,

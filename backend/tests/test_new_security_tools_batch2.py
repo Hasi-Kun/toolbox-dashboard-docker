@@ -291,7 +291,7 @@ def test_dmarc_strength_partial_percentage_reduces_score():
 # --- SRI Checker --------------------------------------------------------------
 
 def test_sri_checker_rejects_invalid_url():
-    from app.modules.website.sri_checker import SriCheckerModule
+    from app.modules.security.sri_checker import SriCheckerModule
 
     with pytest.raises(ValidationError):
         SriCheckerModule.Input(url="not a url; rm -rf /")
@@ -299,7 +299,7 @@ def test_sri_checker_rejects_invalid_url():
 
 @pytest.mark.asyncio
 async def test_sri_checker_detects_missing_integrity():
-    from app.modules.website.sri_checker import SriCheckerModule
+    from app.modules.security.sri_checker import SriCheckerModule
 
     class FakeResponse:
         url = "https://example.com/"
@@ -324,7 +324,7 @@ async def test_sri_checker_detects_missing_integrity():
 
 @pytest.mark.asyncio
 async def test_sri_checker_ignores_same_origin_resources():
-    from app.modules.website.sri_checker import SriCheckerModule
+    from app.modules.security.sri_checker import SriCheckerModule
 
     class FakeResponse:
         url = "https://example.com/"

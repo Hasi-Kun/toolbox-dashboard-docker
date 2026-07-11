@@ -12,6 +12,15 @@ hinzu (gleiche Struktur wie `bookstack.{{BASE_DOMAIN}}`):
     }
     handle {
         import block_common
+        # Verteidigung gegen CVE-2025-29927 (Next.js Middleware-Bypass):
+        # entfernt den internen x-middleware-subrequest-Header aus JEDER
+        # eingehenden Anfrage, BEVOR sie das Frontend erreicht. Next.js
+        # selbst setzt diesen Header nur intern (fuer eigene interne
+        # Rewrite-/Redirect-Subrequests) -- kommt er von AUSSEN, ist das
+        # per Definition ein Faelschungsversuch. Wirkt unabhaengig von der
+        # installierten Next.js-Version (zusaetzlich zum eigentlichen
+        # Patch, nicht als Ersatz dafuer).
+        request_header -X-Middleware-Subrequest
         reverse_proxy toolbox-frontend:3000 {
             header_up X-Real-IP {http.request.header.CF-Connecting-IP}
             transport http {
