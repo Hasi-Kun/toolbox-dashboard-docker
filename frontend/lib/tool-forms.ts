@@ -231,6 +231,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "shodan-internetdb": [{ name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" }],
   "sri-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
+  "domain-security-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "typosquat-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "subdomain-takeover-checker": [{ name: "subdomain", label: "Subdomain", type: "text", placeholder: "forgotten.example.com" }],
   "cloud-bucket-finder": [{ name: "name", label: "Firmen-/Projektname", type: "text", placeholder: "meinefirma" }],

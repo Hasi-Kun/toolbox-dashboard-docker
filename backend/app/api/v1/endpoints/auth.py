@@ -9,6 +9,7 @@ from app.api.deps import get_current_user
 from app.core.audit import get_client_ip, log_audit_event
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.ip_restriction import is_ip_allowed
 from app.core.rate_limit import clear_failed_login_count, enforce_account_lockout, enforce_rate_limit, record_failed_login
 from app.core.security import hash_password, verify_password
 from app.core.sessions import (
@@ -126,6 +127,19 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
 
     log_audit_event(db, "login_password", success=True, username=user.username, ip_address=ip)
     await clear_failed_login_count(user.username)
+
+    # Optionale, vom Nutzer selbst gesetzte IP-Beschraenkung -- greift
+    # NACH dem Passwort-Check (verhindert, dass ein Angreifer per
+    # Fehlermeldung unterscheiden kann "falsches Passwort" vs. "falsche
+    # IP"), aber VOR der 2FA-Abfrage (kein Grund, ueberhaupt einen
+    # 2FA-Code zu verlangen, wenn die IP ohnehin nicht erlaubt ist).
+    if not is_ip_allowed(ip, user.allowed_login_ips):
+        log_audit_event(
+            db, "login_blocked_ip", success=False, username=user.username, ip_address=ip,
+            detail="Login von nicht erlaubter IP-Adresse blockiert",
+        )
+        raise HTTPException(status_code=403, detail="Login von dieser IP-Adresse ist fuer dieses Konto nicht erlaubt.")
+
     pending_id = await create_pending(user.id, "login")
 
     methods: list[str] = []
@@ -224,7 +238,9 @@ async def verify_totp_login(
         raise HTTPException(status_code=401, detail="Code ungueltig oder abgelaufen")
 
     log_audit_event(db, "login_2fa", success=True, username=user.username, ip_address=get_client_ip(request))
-    session_id = await create_session(user.id)
+    session_id = await create_session(
+        user.id, ttl_seconds=(user.session_timeout_minutes * 60) if user.session_timeout_minutes else None
+    )
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
     return {"success": True}
@@ -260,7 +276,9 @@ async def verify_totp_setup(payload: TotpVerifyRequest, request: Request, respon
     db.add(user)
     db.commit()
 
-    session_id = await create_session(user.id)
+    session_id = await create_session(
+        user.id, ttl_seconds=(user.session_timeout_minutes * 60) if user.session_timeout_minutes else None
+    )
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
     log_audit_event(
@@ -304,7 +322,9 @@ async def verify_passkey_login(payload: PasskeyVerifyRequest, response: Response
     db.add(stored)
     db.commit()
 
-    session_id = await create_session(user.id)
+    session_id = await create_session(
+        user.id, ttl_seconds=(user.session_timeout_minutes * 60) if user.session_timeout_minutes else None
+    )
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
     return {"success": True}
@@ -347,7 +367,9 @@ async def verify_passkey_registration(
     )
     db.commit()
 
-    session_id = await create_session(user.id)
+    session_id = await create_session(
+        user.id, ttl_seconds=(user.session_timeout_minutes * 60) if user.session_timeout_minutes else None
+    )
     await delete_pending(payload.pending_token)
     _set_session_cookie(response, session_id)
     return {"success": True}

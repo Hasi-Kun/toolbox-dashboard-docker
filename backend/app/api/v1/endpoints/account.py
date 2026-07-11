@@ -11,6 +11,7 @@ from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.audit import get_client_ip, log_audit_event
+from app.core.ip_restriction import is_ip_allowed, parse_and_validate
 from app.core.rate_limit import enforce_rate_limit
 from app.core.security import hash_password, verify_password
 from app.core.sessions import delete_transient, get_transient, invalidate_all_sessions, store_transient
@@ -414,3 +415,97 @@ async def update_display_style(
         display_name_color=user.display_name_color,
         display_name_gradient_color=user.display_name_gradient_color,
     )
+
+
+# --- Login-IP-Beschraenkung (optional, selbst verwaltet) -------------------
+
+class AllowedIpsOut(BaseModel):
+    allowed_login_ips: str | None
+    current_ip: str
+
+
+class UpdateAllowedIpsRequest(BaseModel):
+    allowed_ips: str  # kommagetrennt, leer = keine Einschraenkung
+
+
+@router.get("/me/security/allowed-ips", response_model=AllowedIpsOut)
+async def get_allowed_ips(request: Request, user: User = Depends(get_current_user)) -> AllowedIpsOut:
+    return AllowedIpsOut(allowed_login_ips=user.allowed_login_ips, current_ip=get_client_ip(request))
+
+
+@router.patch("/me/security/allowed-ips", response_model=AllowedIpsOut)
+async def update_allowed_ips(
+    payload: UpdateAllowedIpsRequest, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> AllowedIpsOut:
+    current_ip = get_client_ip(request)
+    raw = payload.allowed_ips.strip()
+
+    if not raw:
+        user.allowed_login_ips = None
+    else:
+        try:
+            normalized = parse_and_validate(raw)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        candidate = ",".join(normalized)
+        if not is_ip_allowed(current_ip, candidate):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Deine aktuelle IP ({current_ip}) ist nicht in dieser Liste enthalten -- "
+                    "du wuerdest dich damit selbst aussperren. Bitte deine aktuelle IP mit aufnehmen."
+                ),
+            )
+        user.allowed_login_ips = candidate
+
+    db.add(user)
+    db.commit()
+    log_audit_event(db, "allowed_login_ips_changed", success=True, username=user.username, ip_address=current_ip)
+    return AllowedIpsOut(allowed_login_ips=user.allowed_login_ips, current_ip=current_ip)
+
+
+# --- Automatischer Logout (individuelles Session-Timeout) ------------------
+
+MIN_SESSION_TIMEOUT_MINUTES = 5
+MAX_SESSION_TIMEOUT_MINUTES = 10080  # 7 Tage
+
+
+class SessionTimeoutOut(BaseModel):
+    session_timeout_minutes: int | None  # None = globaler Standard
+    effective_minutes: int
+
+
+class UpdateSessionTimeoutRequest(BaseModel):
+    session_timeout_minutes: int | None  # None = zurueck auf globalen Standard
+
+
+@router.get("/me/security/session-timeout", response_model=SessionTimeoutOut)
+async def get_session_timeout(user: User = Depends(get_current_user)) -> SessionTimeoutOut:
+    from app.core.config import get_settings as _get_settings
+
+    global_default_minutes = _get_settings().session_ttl_seconds // 60
+    effective = user.session_timeout_minutes or global_default_minutes
+    return SessionTimeoutOut(session_timeout_minutes=user.session_timeout_minutes, effective_minutes=effective)
+
+
+@router.patch("/me/security/session-timeout", response_model=SessionTimeoutOut)
+async def update_session_timeout(
+    payload: UpdateSessionTimeoutRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> SessionTimeoutOut:
+    from app.core.config import get_settings as _get_settings
+
+    if payload.session_timeout_minutes is not None:
+        if not (MIN_SESSION_TIMEOUT_MINUTES <= payload.session_timeout_minutes <= MAX_SESSION_TIMEOUT_MINUTES):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Timeout muss zwischen {MIN_SESSION_TIMEOUT_MINUTES} und {MAX_SESSION_TIMEOUT_MINUTES} Minuten liegen.",
+            )
+
+    user.session_timeout_minutes = payload.session_timeout_minutes
+    db.add(user)
+    db.commit()
+
+    global_default_minutes = _get_settings().session_ttl_seconds // 60
+    effective = user.session_timeout_minutes or global_default_minutes
+    return SessionTimeoutOut(session_timeout_minutes=user.session_timeout_minutes, effective_minutes=effective)

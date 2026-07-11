@@ -37,6 +37,15 @@ class User(Base):
     # 2FA-Secret schon sehr lange nicht mehr rotiert haben. Nullable,
     # da bestehende Nutzer beim Migrieren keinen bekannten Zeitpunkt haben.
     totp_rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Optionale IP-Beschraenkung fuer den Login -- kommagetrennte Liste
+    # aus IPs/CIDR-Bereichen (z.B. "203.0.113.5,198.51.100.0/24"). Leer/
+    # NULL = keine Einschraenkung (Standard, abwaertskompatibel). Jeder
+    # Nutzer verwaltet das selbst unter Sicherheitseinstellungen.
+    allowed_login_ips: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Optionales, individuelles Session-Timeout in Minuten (gleitend --
+    # verlaengert sich bei jeder Aktivitaet). NULL = globalen Standard
+    # aus den Server-Einstellungen verwenden.
+    session_timeout_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

@@ -22,20 +22,31 @@ PendingPurpose = Literal["login", "setup_totp", "setup_passkey"]
 
 # --- Sessions (nach vollstaendiger Authentifizierung) ---------------------
 
-async def create_session(user_id: int) -> str:
+async def create_session(user_id: int, ttl_seconds: int | None = None) -> str:
+    effective_ttl = ttl_seconds or settings.session_ttl_seconds
     session_id = secrets.token_urlsafe(32)
     await _redis.set(
         f"session:{session_id}",
         json.dumps({"user_id": user_id}),
-        ex=settings.session_ttl_seconds,
+        ex=effective_ttl,
     )
     # Zusaetzlich in einem Set pro Nutzer vermerken -- ermoeglicht
     # invalidate_all_sessions() unten (z.B. bei einer Passwort-Aenderung
     # sollen ALLE anderen aktiven Sessions dieses Nutzers sofort
     # ungueltig werden, nicht nur die aktuelle).
     await _redis.sadd(f"user-sessions:{user_id}", session_id)
-    await _redis.expire(f"user-sessions:{user_id}", settings.session_ttl_seconds)
+    await _redis.expire(f"user-sessions:{user_id}", effective_ttl)
     return session_id
+
+
+async def refresh_session_ttl(session_id: str, user_id: int, ttl_seconds: int) -> None:
+    """Gleitende Sitzungsverlaengerung fuer den automatischen Logout:
+    bei jeder authentifizierten Anfrage wird die Session-TTL auf den
+    (individuellen oder globalen) Timeout-Wert zurueckgesetzt -- die
+    Session laeuft also erst ab, wenn der Nutzer eine Zeit lang INAKTIV
+    war, nicht schon eine feste Zeit nach dem Login."""
+    await _redis.expire(f"session:{session_id}", ttl_seconds)
+    await _redis.expire(f"user-sessions:{user_id}", ttl_seconds)
 
 
 async def get_session_user_id(session_id: str) -> int | None:

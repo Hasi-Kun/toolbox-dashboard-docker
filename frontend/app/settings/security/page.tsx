@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { KeyRound, Loader2, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } from "lucide-react";
+import { Clock, KeyRound, Loader2, MapPin, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
@@ -36,6 +36,14 @@ export default function SecuritySettingsPage() {
   const [totpCode, setTotpCode] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const [allowedIps, setAllowedIps] = useState("");
+  const [currentIp, setCurrentIp] = useState("");
+  const [savingIps, setSavingIps] = useState(false);
+
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number | null>(null);
+  const [effectiveTimeoutMinutes, setEffectiveTimeoutMinutes] = useState<number | null>(null);
+  const [savingTimeout, setSavingTimeout] = useState(false);
+
   async function loadStatus() {
     const res = await fetch("/api/account/2fa");
     if (res.ok) setStatus(await res.json());
@@ -44,7 +52,72 @@ export default function SecuritySettingsPage() {
   useEffect(() => {
     loadStatus();
     setWebauthnSupported(isWebAuthnSupported());
+
+    fetch("/api/auth/me/security/allowed-ips")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setAllowedIps(data.allowed_login_ips ?? "");
+          setCurrentIp(data.current_ip ?? "");
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/auth/me/security/session-timeout")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setSessionTimeoutMinutes(data.session_timeout_minutes);
+          setEffectiveTimeoutMinutes(data.effective_minutes);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  async function handleSaveAllowedIps(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setSavingIps(true);
+    try {
+      const res = await fetch("/api/auth/me/security/allowed-ips", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowed_ips: allowedIps }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
+      setAllowedIps(data.allowed_login_ips ?? "");
+      setNotice(t("security.ip_restriction_saved"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setSavingIps(false);
+    }
+  }
+
+  async function handleSaveSessionTimeout(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setSavingTimeout(true);
+    try {
+      const res = await fetch("/api/auth/me/security/session-timeout", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_timeout_minutes: sessionTimeoutMinutes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
+      setSessionTimeoutMinutes(data.session_timeout_minutes);
+      setEffectiveTimeoutMinutes(data.effective_minutes);
+      setNotice(t("security.auto_logout_saved"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setSavingTimeout(false);
+    }
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -283,6 +356,54 @@ export default function SecuritySettingsPage() {
                 <p className="text-sm text-ink-muted">{t("security.no_passkey_yet")}</p>
               )}
             </ul>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+            <h2 className="flex items-center gap-2 font-display text-base text-ink">
+              <MapPin className="h-4 w-4" /> {t("security.ip_restriction_heading")}
+            </h2>
+            <p className="mt-1 text-sm text-ink-muted">{t("security.ip_restriction_description")}</p>
+            <p className="mt-2 text-xs text-ink-muted">
+              {t("security.current_ip_label")} <span className="font-mono text-signal">{currentIp}</span>
+            </p>
+            <form onSubmit={handleSaveAllowedIps} className="mt-3 space-y-3">
+              <textarea
+                value={allowedIps}
+                onChange={(e) => setAllowedIps(e.target.value)}
+                placeholder={t("security.ip_restriction_placeholder")}
+                rows={2}
+                className="input font-mono text-sm"
+              />
+              <button type="submit" disabled={savingIps} className="submit-button w-auto px-4">
+                {savingIps ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.save")}
+              </button>
+            </form>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+            <h2 className="flex items-center gap-2 font-display text-base text-ink">
+              <Clock className="h-4 w-4" /> {t("security.auto_logout_heading")}
+            </h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              {t("security.auto_logout_description")} {t("security.auto_logout_effective")} {effectiveTimeoutMinutes ?? "..."} min.
+            </p>
+            <form onSubmit={handleSaveSessionTimeout} className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.auto_logout_minutes_label")}</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={10080}
+                  value={sessionTimeoutMinutes ?? ""}
+                  onChange={(e) => setSessionTimeoutMinutes(e.target.value ? Number(e.target.value) : null)}
+                  placeholder={t("security.auto_logout_placeholder")}
+                  className="input w-40"
+                />
+              </label>
+              <button type="submit" disabled={savingTimeout} className="submit-button w-auto px-4">
+                {savingTimeout ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.save")}
+              </button>
+            </form>
           </section>
         </main>
       </div>

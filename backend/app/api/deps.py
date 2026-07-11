@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.sessions import get_session_user_id
+from app.core.sessions import get_session_user_id, refresh_session_ttl
 from app.models.user import User, UserRole
 
 settings = get_settings()
@@ -21,6 +21,16 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Account nicht (mehr) aktiv")
+
+    # Gleitende Sitzungsverlaengerung ("automatischer Logout nach
+    # Inaktivitaet"): bei jeder authentifizierten Anfrage die Session-TTL
+    # auf den individuellen (falls gesetzt) oder globalen Timeout
+    # zurueckSetzen, statt sie nach einer festen Zeit ab dem Login
+    # ablaufen zu lassen.
+    effective_timeout_seconds = (
+        user.session_timeout_minutes * 60 if user.session_timeout_minutes else settings.session_ttl_seconds
+    )
+    await refresh_session_ttl(session_id, user.id, effective_timeout_seconds)
 
     return user
 
