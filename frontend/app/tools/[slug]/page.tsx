@@ -34,6 +34,12 @@ const NIKTO_CONSOLE_INTRO = [
   "Nur fuer Systeme, fuer die du eine Erlaubnis zum Testen hast.",
 ];
 
+const TESTSSL_CONSOLE_INTRO = [
+  "testssl.sh-Konsole -- tippe direkt das Ziel, z.B.:",
+  "  example.com",
+  "Nur fuer Systeme, fuer die du eine Erlaubnis zum Testen hast.",
+];
+
 export default function ToolPage() {
   const params = useParams<{ slug: string }>();
   const { t } = useLanguage();
@@ -143,6 +149,11 @@ export default function ToolPage() {
               {tool.slug === "nikto-scan" && isAdmin && (
                 <div className="mt-4">
                   <ToolConsole fixedSlug="nikto-scan" placeholder="example.com" introLines={NIKTO_CONSOLE_INTRO} />
+                </div>
+              )}
+              {tool.slug === "testssl-deep-scan" && isAdmin && (
+                <div className="mt-4">
+                  <ToolConsole fixedSlug="testssl-deep-scan" placeholder="example.com" introLines={TESTSSL_CONSOLE_INTRO} />
                 </div>
               )}
               {tool.category === "nmap" && tool.slug !== "nikto-scan" && (

@@ -114,6 +114,40 @@ def build_nikto(params: dict) -> list[str]:
     ]
 
 
+TESTSSL_BIN = "/opt/testssl/testssl.sh"
+
+
+def build_testssl(params: dict) -> list[str]:
+    """testssl.sh -- gruendlicher TLS/SSL-Pruefer (Heartbleed, POODLE,
+    ROBOT, DROWN, LOGJAM, Ticketbleed, CCS-Injection, BEAST, FREAK,
+    LUCKY13, SWEET32 u.a.). Wie bei Nikto: NUR feste Flags, nie vom
+    Nutzer frei waehlbare Kommandozeilenargumente.
+
+    Echter temporaerer Dateipfad fuer --jsonfile statt Stdout -- testssl.sh
+    unterstuetzt kein direktes JSON-Streaming nach stdout (--jsonfile -
+    wuerde woertlich eine Datei namens '-' anlegen, siehe testssl-Issue
+    #1290). Der Worker uebergibt hier params['_output_path'], liest die
+    Datei nach dem Lauf ein und loescht sie wieder.
+    """
+    target = _require_target(params)
+    port = params.get("port", 443)
+    if not isinstance(port, int) or not (1 <= port <= 65535):
+        raise InvalidJobError("Ungueltiger Port")
+
+    output_path = params.get("_output_path")
+    if not output_path:
+        raise InvalidJobError("Interner Fehler: kein Ausgabe-Pfad fuer testssl.sh gesetzt")
+
+    return [
+        TESTSSL_BIN,
+        "--quiet",  # keine interaktive Warnung/Bestaetigung noetig
+        "--color", "0",
+        "--jsonfile", output_path,
+        "--severity", "LOW",  # alles ab LOW protokollieren (nicht nur HIGH/CRITICAL)
+        f"{target}:{port}",
+    ]
+
+
 TEMPLATES = {
     "quick": build_quick,
     "top-ports": build_top_ports,
@@ -125,4 +159,5 @@ TEMPLATES = {
     "full-port-scan": build_full_port_scan,
     "vuln-scan": build_vuln_scan,
     "nikto": build_nikto,
+    "testssl": build_testssl,
 }

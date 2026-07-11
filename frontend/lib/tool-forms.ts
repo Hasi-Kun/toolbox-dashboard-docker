@@ -123,6 +123,12 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
     { name: "target", label: "Ziel (nur Systeme, fuer die du eine Erlaubnis hast)", type: "text", placeholder: "example.com", helpText: "Nutzt nmaps 'vuln'-Script-Kategorie. Nur fuer Administratoren." },
   ],
 
+  // --- testssl.sh ---
+  "testssl-deep-scan": [
+    { name: "target", label: "Ziel (nur Systeme, fuer die du eine Erlaubnis hast)", type: "text", placeholder: "example.com", helpText: "Gruendlicher TLS/SSL-Schwachstellen-Scan -- kann mehrere Minuten dauern. Nur fuer Administratoren." },
+    { name: "port", label: "Port", type: "number", default: 443 },
+  ],
+
   // --- Utilities ---
   "hash-generator": [
     { name: "text", label: "Text", type: "textarea" },

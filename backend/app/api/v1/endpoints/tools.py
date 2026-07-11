@@ -31,6 +31,7 @@ _PER_SLUG_SCAN_LIMITS: dict[str, int] = {
     "nikto-scan": 2,
     "nmap-full-port-scan": 2,
     "nmap-vuln-scan": 2,
+    "testssl-deep-scan": 2,
 }
 
 

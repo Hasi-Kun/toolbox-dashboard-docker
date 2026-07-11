@@ -18,6 +18,7 @@ import redis.asyncio as redis
 from app.templates import TEMPLATES, InvalidJobError
 from app.xml_parser import parse_nmap_xml
 from app.nikto_parser import parse_nikto_xml
+from app.testssl_parser import parse_testssl_json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | scanner | %(message)s")
 logger = logging.getLogger("scanner")
@@ -54,6 +55,7 @@ SUBPROCESS_TIMEOUT_BY_TEMPLATE: dict[str, int] = {
 }
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90  # Fallback fuer unbekannte/neue Templates
 NIKTO_SUBPROCESS_TIMEOUT_SECONDS = 1750  # Nikto kann bei grossen Sites sehr lange dauern
+TESTSSL_SUBPROCESS_TIMEOUT_SECONDS = 900  # Der volle Standard-Testlauf kann mehrere Minuten dauern
 
 _redis = redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -120,6 +122,7 @@ async def handle_job(job: dict) -> None:
 
     result: dict = {}
     nikto_output_path: str | None = None
+    testssl_output_path: str | None = None
     try:
         builder = TEMPLATES.get(template_name)
         if builder is None:
@@ -147,6 +150,24 @@ async def handle_job(job: dict) -> None:
                 # statt erst muehsam im Container-Log gesucht werden zu muessen.
                 snippet = console_output.strip()[:300] or "(keine Konsolenausgabe erfasst)"
                 raise ValueError(f"{exc} -- Nikto-Konsolenausgabe: {snippet}") from exc
+        elif template_name == "testssl":
+            # Echter temporaerer Dateipfad, gleicher Grund wie bei Nikto --
+            # testssl.sh unterstuetzt kein direktes JSON-Streaming nach
+            # stdout (siehe templates.py fuer Details).
+            fd, testssl_output_path = tempfile.mkstemp(suffix=".json", prefix="testssl_")
+            os.close(fd)
+
+            args = builder({**params, "_output_path": testssl_output_path})
+            console_output = await run_command(args, timeout=TESTSSL_SUBPROCESS_TIMEOUT_SECONDS)
+
+            with open(testssl_output_path, encoding="utf-8", errors="replace") as f:
+                raw_output = f.read()
+
+            try:
+                result = parse_testssl_json(raw_output)
+            except ValueError as exc:
+                snippet = console_output.strip()[-500:] or "(keine Konsolenausgabe erfasst)"
+                raise ValueError(f"{exc} -- testssl.sh-Konsolenausgabe (Ende): {snippet}") from exc
         else:
             args = builder(params)
             template_timeout = SUBPROCESS_TIMEOUT_BY_TEMPLATE.get(template_name, DEFAULT_SUBPROCESS_TIMEOUT_SECONDS)
@@ -165,11 +186,16 @@ async def handle_job(job: dict) -> None:
         result = {"error": f"Scan fehlgeschlagen: {exc}"}
         logger.exception("Job %s: unerwarteter Fehler", job_id)
     finally:
-        # Temporaere Nikto-Ausgabedatei IMMER loeschen, unabhaengig vom
+        # Temporaere Ausgabedateien IMMER loeschen, unabhaengig vom
         # Ergebnis -- kein dauerhafter Speicher von Scan-Rohdaten.
         if nikto_output_path is not None:
             try:
                 os.unlink(nikto_output_path)
+            except OSError:
+                pass
+        if testssl_output_path is not None:
+            try:
+                os.unlink(testssl_output_path)
             except OSError:
                 pass
         # "Aktuell laufender Job" zuruecksetzen, damit die Warteschlangen-

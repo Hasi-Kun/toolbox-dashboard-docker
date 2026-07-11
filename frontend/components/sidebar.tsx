@@ -21,6 +21,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ShieldAlert,
+  ScanLine,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const iconBySlug: Record<string, React.ComponentType<{ className?: string }>> = 
   mail: Mail,
   network: Network,
   nmap: Radar,
+  testssl: ScanLine,
   security: ShieldCheck,
   website: Gauge,
   utilities: Wrench,
