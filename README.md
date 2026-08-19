@@ -186,4 +186,5 @@ While the application may provide backup functionality, it is strongly recommend
 
 For improved reliability and disaster recovery, use regular off-site backups (for example to a separate server, NAS, or cloud storage). Backups should be automated, verified periodically, and stored independently of the application host to protect against hardware failure, accidental deletion, or other catastrophic events.
 
-<img width="885" height="500" alt="monke_backup_meme" src="https://github.com/user-attachments/assets/77643c8e-927b-424a-8de9-a0ac672a6a4e" />
+<img width="1113" height="629" alt="grafik" src="https://github.com/user-attachments/assets/bd356472-5c62-4e50-ac5f-0ee803aa4af5" />
+
