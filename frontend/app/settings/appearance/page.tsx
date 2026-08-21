@@ -18,6 +18,8 @@ export default function AppearanceSettingsPage() {
   const [interactiveDots, setInteractiveDots] = useState(true);
   const [formOpacity, setFormOpacity] = useState(90);
   const [formBlur, setFormBlur] = useState(4);
+  const [parallaxEnabled, setParallaxEnabled] = useState(false);
+  const [parallaxStrength, setParallaxStrength] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,8 @@ export default function AppearanceSettingsPage() {
         setInteractiveDots(data.interactive_dots ?? true);
         setFormOpacity(data.form_opacity_percent ?? 90);
         setFormBlur(data.form_blur_px ?? 4);
+        setParallaxEnabled(data.parallax_enabled ?? false);
+        setParallaxStrength(data.parallax_strength ?? 1);
       })
       .catch(() => setError(t("appearance.load_error")))
       .finally(() => setLoaded(true));
@@ -64,6 +68,8 @@ export default function AppearanceSettingsPage() {
           interactive_dots: interactiveDots,
           form_opacity_percent: formOpacity,
           form_blur_px: formBlur,
+          parallax_enabled: parallaxEnabled,
+          parallax_strength: parallaxStrength,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -224,6 +230,35 @@ export default function AppearanceSettingsPage() {
                     className="w-full accent-signal"
                   />
                 </label>
+
+                <label className="mt-4 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={parallaxEnabled}
+                    onChange={(e) => setParallaxEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded border-base-border accent-signal"
+                  />
+                  <span className="text-sm text-ink-muted">{t("appearance.parallax_label")}</span>
+                </label>
+                <p className="mt-1 text-xs text-ink-muted">{t("appearance.parallax_note")}</p>
+
+                {parallaxEnabled && (
+                  <label className="mt-3 block">
+                    <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-ink-muted">
+                      <span>{t("appearance.parallax_strength_label")}</span>
+                      <span className="font-mono text-signal">{parallaxStrength.toFixed(2)}x</span>
+                    </span>
+                    <input
+                      type="range"
+                      min={0.25}
+                      max={3}
+                      step={0.25}
+                      value={parallaxStrength}
+                      onChange={(e) => setParallaxStrength(Number(e.target.value))}
+                      className="w-full accent-signal"
+                    />
+                  </label>
+                )}
               </div>
 
               <button type="submit" disabled={saving} className="submit-button w-auto px-4">

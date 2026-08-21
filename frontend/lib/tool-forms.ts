@@ -88,7 +88,12 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   ],
   "cors-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://api.example.com" }],
   "waf-detector": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "ssh-security-check": [
+    { name: "host", label: "Host", type: "text", placeholder: "example.com" },
+    { name: "port", label: "Port", type: "number", default: 22 },
+  ],
   "reflected-input-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com/search" }],
+  "exposed-files-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "open-redirect-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com/login" }],
   "cookie-security-analyzer": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "http-methods-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
@@ -147,6 +152,12 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
     },
   ],
   "ntlm-hash-generator": [{ name: "password", label: "Passwort (wird nie gespeichert)", type: "password", placeholder: "zu hashendes Passwort" }],
+  "json-formatter": [
+    { name: "json_text", label: "JSON", type: "textarea", placeholder: '{"key": "value"}' },
+    { name: "mode", label: "Modus", type: "select", options: [{ value: "pretty", label: "Formatiert (lesbar)" }, { value: "minify", label: "Kompakt (minified)" }], default: "pretty" },
+    { name: "indent", label: "Einrueckung (bei Formatiert)", type: "number", default: 2 },
+    { name: "sort_keys", label: "Schluessel alphabetisch sortieren", type: "checkbox", default: false },
+  ],
   "base64-tool": [
     { name: "text", label: "Text", type: "textarea" },
     { name: "operation", label: "Operation", type: "select", options: [{ value: "encode", label: "Encode" }, { value: "decode", label: "Decode" }], default: "encode" },
@@ -238,6 +249,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "shodan-internetdb": [{ name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" }],
+  "email-harvester": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "sri-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
   "domain-security-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "typosquat-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],

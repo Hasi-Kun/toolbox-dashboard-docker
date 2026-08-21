@@ -198,6 +198,7 @@ async def list_requests(
     tag: str | None = None,
     page: int = 1,
     page_size: int = 25,
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> PaginatedRequestsOut:
@@ -206,6 +207,19 @@ async def list_requests(
 
     requests = db.query(FeatureRequest).all()
     summaries = [_summary(db, r, user.id) for r in requests]
+
+    # WICHTIG: "erledigt"/"abgelehnt" muss VOR der Paginierung
+    # rausgefiltert werden, nicht erst danach im Frontend -- sonst
+    # basiert die Seitenberechnung auf der GESAMTMENGE (inkl. laengst
+    # erledigter Eintraege), und ein neuer Vorschlag kann auf einer
+    # spaeteren Seite landen, obwohl auf Seite 1 unter den tatsaechlich
+    # noch offenen/geplanten Eintraegen laengst Platz waere. Das war
+    # der gemeldete Bug: nur 5 Eintraege sichtbar trotz page_size=25,
+    # weil das Frontend erledigte Eintraege NACH dem Laden client-seitig
+    # wegfilterte, wenn die Seite selbst schon voller erledigter
+    # Eintraege war.
+    if not include_archived:
+        summaries = [s for s in summaries if s.status not in ("done", "rejected")]
 
     if search:
         needle = search.strip().lower()

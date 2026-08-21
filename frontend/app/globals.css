@@ -25,6 +25,14 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+
+  /* Eingabefelder bekommen einen eigenen, dezenteren Fokus-Stil statt des
+     globalen 2px-Outlines mit Versatz -- der wirkte zusammen mit der
+     eigenen Border-Farbaenderung wie ein dicker Doppelring. Stattdessen
+     ein einzelner, duenner Glow direkt an der Kante. */
+  .input:focus-visible {
+    outline: none;
+  }
 }
 
 /* Signature element: ein einzelner, ruhiger Radar-Sweep auf dem
@@ -46,7 +54,12 @@
 
 @layer components {
   .input {
-    @apply w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-signal/50;
+    @apply w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm text-ink placeholder:text-ink-muted transition-colors duration-150;
+  }
+
+  .input:focus {
+    border-color: rgba(53, 224, 192, 0.55);
+    box-shadow: 0 0 0 3px rgba(53, 224, 192, 0.12);
   }
 
   .method-button {
@@ -56,6 +69,80 @@
   .submit-button {
     @apply flex w-full items-center justify-center gap-2 rounded-lg bg-signal px-3 py-2.5 text-sm font-medium text-base transition-opacity hover:opacity-90 disabled:opacity-50;
   }
+
+  /* Wiederverwendbare "hochwertige" Karten-Interaktion: dezenter Lift +
+     Glow beim Hover, statt nur einer Randfarben-Aenderung. Fuer klickbare
+     Karten (Kategorien, Tools) im gesamten Dashboard. */
+  .card-interactive {
+    @apply transition-all duration-300 ease-out;
+    will-change: transform;
+  }
+  .card-interactive:hover {
+    transform: translateY(-3px);
+    border-color: rgba(53, 224, 192, 0.4);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+      0 16px 32px -16px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(53, 224, 192, 0.12),
+      0 0 24px -4px rgba(53, 224, 192, 0.25);
+  }
+
+  /* Glasmorphismus-Karte fuer Login/Registrierung: ein sehr duenner,
+     halbtransparenter Rand statt eines vollen Border-Tons, und ein
+     einzelner heller Lichtsaum an der Oberkante -- simuliert Licht, das
+     auf eine Glaskante faellt. Die eigentliche Deckkraft/Weichzeichnung
+     bleibt ueber appearance.form_opacity_percent/form_blur_px admin-
+     konfigurierbar (per Inline-Style gesetzt, siehe login/register
+     page.tsx -- dort wird backdrop-filter bewusst NICHT hier in der
+     Klasse gesetzt, weil ein Inline-Style denselben CSS-Property-Namen
+     sonst komplett ueberschreiben wuerde, statt sich zu kombinieren). */
+  .glass-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+      0 24px 48px -16px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(53, 224, 192, 0.06);
+  }
+}
+
+/* Gestaffelte Einblend-Animation ("stagger-in") -- Karten erscheinen
+   nacheinander leicht von unten mit Fade statt alle gleichzeitig
+   aufzupoppen. animation-delay wird inline pro Element gesetzt
+   (siehe Dashboard: style={{ animationDelay: `${i * 60}ms` }}). */
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-stagger-in {
+  animation: stagger-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Subtiler "Glanz", der einmal ueber eine Karte laeuft -- fuer
+   hervorgehobene Elemente (z.B. die erste/wichtigste Statuskarte). */
+@keyframes sheen-sweep {
+  from {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: sheen-sweep 3.5s ease-in-out infinite;
+  animation-delay: 1s;
+  pointer-events: none;
 }
 
 @keyframes gradient-pulse {
@@ -195,7 +282,18 @@
   .styled-name-twinkle::before,
   .styled-name-twinkle::after,
   .styled-name-glitter,
-  .styled-name-rainbow {
+  .styled-name-rainbow,
+  .animate-stagger-in,
+  .sheen::after {
     animation: none;
+  }
+
+  .card-interactive {
+    transition: none;
+  }
+
+  .animate-stagger-in {
+    opacity: 1;
+    transform: none;
   }
 }

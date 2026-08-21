@@ -9,13 +9,13 @@ import uuid as uuid_module
 import pytest
 from pydantic import ValidationError
 
-from app.modules.utilities.base64_tool import Base64ToolModule
-from app.modules.utilities.cidr_calculator import CidrCalculatorModule
-from app.modules.utilities.hash_generator import HashGeneratorModule
-from app.modules.utilities.jwt_decoder import JwtDecoderModule
-from app.modules.utilities.password_generator import PasswordGeneratorModule
-from app.modules.utilities.timestamp_converter import TimestampConverterModule
-from app.modules.utilities.uuid_generator import UuidGeneratorModule
+from app.modules.converter.base64_tool import Base64ToolModule
+from app.modules.converter.cidr_calculator import CidrCalculatorModule
+from app.modules.converter.hash_generator import HashGeneratorModule
+from app.modules.converter.jwt_decoder import JwtDecoderModule
+from app.modules.converter.password_generator import PasswordGeneratorModule
+from app.modules.converter.timestamp_converter import TimestampConverterModule
+from app.modules.converter.uuid_generator import UuidGeneratorModule
 
 
 @pytest.mark.asyncio

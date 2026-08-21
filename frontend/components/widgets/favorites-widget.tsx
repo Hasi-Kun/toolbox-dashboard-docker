@@ -26,7 +26,7 @@ export function FavoritesWidget() {
   }, []);
 
   return (
-    <div className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+    <div className="card-interactive animate-stagger-in rounded-xl border border-base-border bg-base-elevated p-5 shadow-card" style={{ animationDelay: "240ms" }}>
       <p className="text-sm text-ink-muted">{t("dashboard.favorites")}</p>
 
       {favoriteTools === null && <p className="mt-4 text-sm text-ink-muted">...</p>}

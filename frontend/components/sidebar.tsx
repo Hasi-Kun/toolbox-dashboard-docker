@@ -4,42 +4,24 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Globe,
-  Mail,
-  Network,
-  Radar,
-  ShieldCheck,
-  Gauge,
-  Wrench,
-  FileKey,
   LayoutDashboard,
   Users,
   Palette,
   Lightbulb,
   ScrollText,
-  Eye,
   ChevronsLeft,
   ChevronsRight,
   ShieldAlert,
-  ScanLine,
+  Globe,
+  Radar,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
+import { categoryIconBySlug, DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
 
-const iconBySlug: Record<string, React.ComponentType<{ className?: string }>> = {
-  dns: Globe,
-  mail: Mail,
-  network: Network,
-  nmap: Radar,
-  testssl: ScanLine,
-  security: ShieldCheck,
-  website: Gauge,
-  utilities: Wrench,
-  certificates: FileKey,
-  osint: Eye,
-};
+const iconBySlug = categoryIconBySlug;
 
 const COLLAPSE_STORAGE_KEY = "toolbox-sidebar-collapsed";
 

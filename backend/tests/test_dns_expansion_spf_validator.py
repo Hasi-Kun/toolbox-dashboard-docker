@@ -90,7 +90,7 @@ def test_nikto_scan_requires_admin(client):
 
 
 def test_nikto_scan_rejects_invalid_target():
-    from app.modules.nmap.nikto_scan import NiktoScanModule
+    from app.modules.scanner.nikto_scan import NiktoScanModule
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):

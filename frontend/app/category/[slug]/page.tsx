@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
@@ -21,6 +21,7 @@ type Tool = {
 
 export default function CategoryPage() {
   const params = useParams<{ slug: string }>();
+  const router = useRouter();
   const { t } = useLanguage();
   const [tools, setTools] = useState<Tool[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +41,21 @@ export default function CategoryPage() {
 
     fetch("/api/tools")
       .then((res) => {
+        // 401 = Session-Cookie vorhanden, aber ungueltig geworden (z.B.
+        // Redis-Session-Speicher beim letzten Neustart geleert) --
+        // direkt zum Login statt einer kryptischen Fehlermeldung.
+        if (res.status === 401) {
+          router.replace("/login");
+          return null;
+        }
         if (!res.ok) throw new Error("Tools konnten nicht geladen werden");
         return res.json();
       })
-      .then((all: Tool[]) => setTools(all.filter((t) => t.category === params.slug)))
+      .then((all: Tool[] | null) => {
+        if (all) setTools(all.filter((t) => t.category === params.slug));
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Fehler"));
-  }, [params.slug]);
+  }, [params.slug, router]);
 
   return (
     <div className="flex min-h-screen">

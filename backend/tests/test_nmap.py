@@ -8,10 +8,10 @@ synchron pruefbare Validierungslogik abgedeckt.
 import pytest
 from pydantic import ValidationError
 
-from app.modules.nmap.quick import NmapQuickScanModule
-from app.modules.nmap.service_detection import MAX_PORTS, NmapServiceDetectionModule
-from app.modules.nmap.top_ports import NmapTopPortsModule
-from app.modules.nmap.udp import MAX_UDP_PORTS, NmapUdpScanModule
+from app.modules.scanner.quick import NmapQuickScanModule
+from app.modules.scanner.service_detection import MAX_PORTS, NmapServiceDetectionModule
+from app.modules.scanner.top_ports import NmapTopPortsModule
+from app.modules.scanner.udp import MAX_UDP_PORTS, NmapUdpScanModule
 
 
 def test_quick_scan_rejects_invalid_target():
@@ -44,10 +44,14 @@ def test_service_detection_requires_at_least_one_port():
         NmapServiceDetectionModule.Input(target="example.com", ports=[])
 
 
-def test_all_nmap_modules_are_marked_as_active_scan():
+def test_all_scanner_modules_are_marked_as_active_scan():
+    """War 'test_all_nmap_modules_are_marked_as_active_scan' -- die Kategorie
+    heisst jetzt 'scanner' (statt 'nmap') und enthaelt seit der Kategorien-
+    Reorganisation zusaetzlich testssl-deep-scan (frueher eigene Kategorie
+    'testssl'), macht 11 statt 10 Module."""
     from app.modules import get_registry
 
     registry = get_registry()
-    nmap_modules = {slug: cls for slug, cls in registry.items() if cls.category == "nmap"}
-    assert len(nmap_modules) == 10
-    assert all(cls.is_active_scan for cls in nmap_modules.values())
+    scanner_modules = {slug: cls for slug, cls in registry.items() if cls.category == "scanner"}
+    assert len(scanner_modules) == 11
+    assert all(cls.is_active_scan for cls in scanner_modules.values())

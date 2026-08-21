@@ -10,7 +10,7 @@ import hashlib
 import pytest
 from pydantic import ValidationError
 
-from app.modules.utilities.hash_identifier import HashIdentifierModule
+from app.modules.converter.hash_identifier import HashIdentifierModule
 from app.modules.mail.dane_check import DaneCheckModule
 from app.modules.mail.smtp_tls_check import SmtpTlsCheckModule
 from app.modules.website.sitemap_check import _SITEMAP_NS
@@ -49,6 +49,75 @@ async def test_hash_identifier_returns_note_for_unknown_format():
     result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value="not-a-real-hash-at-all"))
     assert result.possible_algorithms == []
     assert result.note is not None
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_wordpress_and_phpbb3():
+    wp = "$P$BiTOhOj3ukMgCci2juN0HRbCdDRqeh."
+    r1 = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=wp))
+    assert any("WordPress" in a for a in r1.possible_algorithms)
+
+    phpbb3 = "$H$9kyOtE8CDqMJ44yfn9PFz2E.L2oVzL1"
+    r2 = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=phpbb3))
+    assert any("phpBB3" in a for a in r2.possible_algorithms)
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_sha512crypt_and_apr1():
+    sha512crypt = "$6$rounds=5000$abcdefgh$1J8rI.mJReeMvpKUZbSlY1J8rI.mJReeMvpKUZbSlY1J8rI.mJReeMvpKUZbSlY1"
+    r1 = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=sha512crypt))
+    assert any("SHA-512 crypt" in a for a in r1.possible_algorithms)
+
+    apr1 = "$apr1$qAUKoKlG$3LuCncByN76eLxZAh/Ldr1"
+    r2 = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=apr1))
+    assert any("APR1" in a for a in r2.possible_algorithms)
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_django_pbkdf2():
+    value = "pbkdf2_sha256$260000$saltsalt$aGFzaHZhbHVlYmFzZTY0ZW5jb2RlZA=="
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=value))
+    assert any("PBKDF2-SHA256" in a for a in result.possible_algorithms)
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_sam_lm_nt_pair():
+    value = "aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0"
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=value))
+    assert any("SAM" in a for a in result.possible_algorithms)
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_mysql41_password():
+    value = "*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19"
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=value))
+    assert any("MySQL" in a for a in result.possible_algorithms)
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_flags_jwt_as_not_a_hash():
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=jwt))
+    assert any("JWT" in a for a in result.possible_algorithms)
+    assert result.note is not None and "JWT Security Analyzer" in result.note
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_recognizes_hash_salt_colon_format():
+    value = "5d41402abc4b2a76b9719d911017c592:somesalt"
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=value))
+    assert any("MD5" in a for a in result.possible_algorithms)
+    assert result.note is not None and "hash:salt" in result.note
+
+
+@pytest.mark.asyncio
+async def test_hash_identifier_ambiguous_length_note_present():
+    # 32 Hex-Zeichen sind laengenidentisch fuer MD5/NTLM/MD4/... -- die Antwort
+    # muss auf die Mehrdeutigkeit hinweisen statt sich auf einen Algorithmus festzulegen.
+    md5 = hashlib.md5(b"ambiguous").hexdigest()
+    result = await HashIdentifierModule().run(HashIdentifierModule.Input(hash_value=md5))
+    assert len(result.possible_algorithms) > 1
+    assert result.note is not None and "Mehrere Algorithmen" in result.note
 
 
 def test_dane_check_rejects_invalid_domain():
@@ -107,7 +176,7 @@ def test_sitemap_parsing_index_format():
 async def test_ip_geolocation_parses_realistic_response():
     from unittest.mock import patch
 
-    from app.modules.utilities.ip_geolocation import IpGeolocationModule
+    from app.modules.network.ip_geolocation import IpGeolocationModule
 
     sample_response = {
         "status": "success", "country": "United States", "regionName": "California",
@@ -171,8 +240,8 @@ def test_all_new_modules_registered_with_correct_categories():
         "ocsp-check": "certificates",
         "broken-links-checker": "website",
         "sitemap-check": "website",
-        "ip-geolocation": "utilities",
-        "hash-identifier": "utilities",
+        "ip-geolocation": "network",
+        "hash-identifier": "converter",
     }
     for slug, category in expected.items():
         assert slug in registry, f"{slug} nicht registriert"

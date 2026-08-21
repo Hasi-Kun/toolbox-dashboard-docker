@@ -6,6 +6,8 @@ import Link from "next/link";
 import { KeyRound, Languages, Loader2, Radar, ShieldCheck, Smartphone } from "lucide-react";
 import { registerPasskey, isWebAuthnSupported } from "@/lib/webauthn-client";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/animated-background";
+import { CaptchaWidget, type PublicCaptchaConfig } from "@/components/captcha-widget";
+import { useParallax } from "@/lib/use-parallax";
 import { useLanguage } from "@/components/language-provider";
 
 type Step =
@@ -48,6 +50,8 @@ function RegisterForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [captchaConfig, setCaptchaConfig] = useState<PublicCaptchaConfig>({ provider: "none", enabled: false, site_key: null });
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<{
     background_style: BackgroundStyle;
     custom_background_url: string | null;
@@ -56,6 +60,8 @@ function RegisterForm() {
     interactive_dots: boolean;
     form_opacity_percent: number;
     form_blur_px: number;
+    parallax_enabled: boolean;
+    parallax_strength: number;
   }>({
     background_style: "dots",
     custom_background_url: null,
@@ -64,13 +70,26 @@ function RegisterForm() {
     interactive_dots: true,
     form_opacity_percent: 90,
     form_blur_px: 4,
+    parallax_enabled: false,
+    parallax_strength: 1,
   });
+
+  const parallax = useParallax(appearance.parallax_enabled);
+  const maxBackgroundShiftPx = 16 * appearance.parallax_strength;
+  const parallaxMarginPx = Math.ceil(maxBackgroundShiftPx + 24);
 
   useEffect(() => {
     fetch("/api/appearance")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) setAppearance(data);
+      })
+      .catch(() => {});
+
+    fetch("/api/security-settings/public")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setCaptchaConfig(data);
       })
       .catch(() => {});
   }, []);
@@ -80,7 +99,7 @@ function RegisterForm() {
     setError(null);
     setLoading(true);
     try {
-      const data = await postJson("/api/auth/register", { invite_code: inviteCode, username, password });
+      const data = await postJson("/api/auth/register", { invite_code: inviteCode, username, password, captcha_token: captchaToken });
       setStep({ name: "choose_2fa", pendingToken: data.pending_token });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registrierung fehlgeschlagen");
@@ -135,13 +154,30 @@ function RegisterForm() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <AnimatedBackground
-        style={appearance.background_style}
-        customUrl={appearance.custom_background_url}
-        speed={appearance.animation_speed}
-        gradientColor={appearance.gradient_color}
-        interactive={appearance.interactive_dots}
-      />
+      <div
+        className={appearance.parallax_enabled ? "fixed" : "absolute inset-0"}
+        style={
+          appearance.parallax_enabled
+            ? {
+                top: -parallaxMarginPx,
+                left: -parallaxMarginPx,
+                right: -parallaxMarginPx,
+                bottom: -parallaxMarginPx,
+                transform: `translate3d(${parallax.x * -maxBackgroundShiftPx}px, ${parallax.y * -maxBackgroundShiftPx}px, 0)`,
+                transition: "transform 120ms ease-out",
+              }
+            : undefined
+        }
+      >
+        <AnimatedBackground
+          style={appearance.background_style}
+          customUrl={appearance.custom_background_url}
+          speed={appearance.animation_speed}
+          gradientColor={appearance.gradient_color}
+          interactive={appearance.interactive_dots}
+          contained={appearance.parallax_enabled}
+        />
+      </div>
       <button
         type="button"
         onClick={() => setLanguage(language === "de" ? "en" : "de")}
@@ -153,10 +189,16 @@ function RegisterForm() {
       </button>
 
       <div
-        className="relative w-full max-w-sm rounded-xl border border-base-border p-6 shadow-card"
+        className="glass-card relative w-full max-w-sm rounded-xl p-6"
         style={{
           backgroundColor: `rgba(17, 26, 46, ${appearance.form_opacity_percent / 100})`,
-          backdropFilter: appearance.form_blur_px > 0 ? `blur(${appearance.form_blur_px}px)` : undefined,
+          backdropFilter: appearance.form_blur_px > 0 ? `blur(${appearance.form_blur_px}px) saturate(150%)` : undefined,
+          ...(appearance.parallax_enabled
+            ? {
+                transform: `perspective(1200px) rotateX(${parallax.y * -2.5 * appearance.parallax_strength}deg) rotateY(${parallax.x * 2.5 * appearance.parallax_strength}deg) translate3d(${parallax.x * 6 * appearance.parallax_strength}px, ${parallax.y * 6 * appearance.parallax_strength}px, 0)`,
+                transition: "transform 120ms ease-out",
+              }
+            : {}),
         }}
       >
         <div className="mb-6 flex items-center gap-2">
@@ -201,6 +243,7 @@ function RegisterForm() {
                 autoComplete="new-password"
               />
             </Field>
+            <CaptchaWidget config={captchaConfig} onToken={setCaptchaToken} />
             <SubmitButton loading={loading}>Registrieren</SubmitButton>
           </form>
         )}

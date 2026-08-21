@@ -42,7 +42,7 @@ export function RecentScansWidget() {
   }
 
   return (
-    <div className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+    <div className="card-interactive animate-stagger-in rounded-xl border border-base-border bg-base-elevated p-5 shadow-card" style={{ animationDelay: "220ms" }}>
       <p className="text-sm text-ink-muted">{t("dashboard.recent_scans")}</p>
 
       {executions === null && <p className="mt-4 text-sm text-ink-muted">...</p>}

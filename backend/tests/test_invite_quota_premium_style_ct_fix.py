@@ -259,11 +259,25 @@ def test_ct_log_timeout_returns_clean_error_not_504(client):
     assert r.json()["success"] is False
 
 
-def test_get_client_ip_prefers_x_real_ip():
+def test_get_client_ip_prefers_cf_connecting_ip():
+    """Seit der Cloudflare-Diagnose-Ergaenzung wird CF-Connecting-IP VOR
+    X-Real-IP geprueft (siehe app/core/audit.py und docs/CADDY.md) --
+    verlaesslicher, falls eine header_up-Regel X-Real-IP aus irgendeinem
+    Grund nicht korrekt aus CF-Connecting-IP ableitet."""
     from app.core.audit import get_client_ip
 
     class FakeRequest:
         headers = {"x-real-ip": "203.0.113.1", "cf-connecting-ip": "203.0.113.2", "x-forwarded-for": "203.0.113.3"}
+        client = None
+
+    assert get_client_ip(FakeRequest()) == "203.0.113.2"
+
+
+def test_get_client_ip_falls_back_to_x_real_ip():
+    from app.core.audit import get_client_ip
+
+    class FakeRequest:
+        headers = {"x-real-ip": "203.0.113.1", "x-forwarded-for": "203.0.113.3"}
         client = None
 
     assert get_client_ip(FakeRequest()) == "203.0.113.1"

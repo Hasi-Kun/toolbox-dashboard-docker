@@ -74,17 +74,18 @@ export default function FeatureRequestsPage() {
     const params = new URLSearchParams({ page: String(page), page_size: "25" });
     if (search) params.set("search", search);
     if (activeTag) params.set("tag", activeTag);
+    if (showArchived) params.set("include_archived", "true");
     fetch(`/api/feature-requests?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then(setData)
       .catch(() => setData(null));
   }
 
-  useEffect(load, [search, activeTag, page]);
+  useEffect(load, [search, activeTag, page, showArchived]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, activeTag]);
+  }, [search, activeTag, showArchived]);
 
   async function handleVote(id: number, direction: "up" | "down") {
     setData((prev) => {
@@ -240,10 +241,7 @@ export default function FeatureRequestsPage() {
             {data === null && <p className="text-sm text-ink-muted">{t("common.loading")}</p>}
             {data?.items.length === 0 && <p className="text-sm text-ink-muted">{t("feature_requests.no_results")}</p>}
             {(() => {
-              const items = data?.items ?? [];
-              const active = items.filter((r) => r.status !== "done" && r.status !== "rejected");
-              const archived = items.filter((r) => r.status === "done" || r.status === "rejected");
-              const visible = showArchived ? [...active, ...archived] : active;
+              const visible = data?.items ?? [];
 
               return (
                 <>
@@ -312,17 +310,13 @@ export default function FeatureRequestsPage() {
                     );
                   })}
 
-                  {archived.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowArchived((v) => !v)}
-                      className="w-full rounded-lg border border-dashed border-base-border py-2 text-xs text-ink-muted hover:text-ink"
-                    >
-                      {showArchived
-                        ? t("feature_requests.archive_hide")
-                        : `${archived.length} ${t("feature_requests.archive_show")}`}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowArchived((v) => !v)}
+                    className="w-full rounded-lg border border-dashed border-base-border py-2 text-xs text-ink-muted hover:text-ink"
+                  >
+                    {showArchived ? t("feature_requests.archive_hide") : t("feature_requests.archive_show_no_count")}
+                  </button>
                 </>
               );
             })()}

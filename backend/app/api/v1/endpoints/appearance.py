@@ -22,6 +22,8 @@ class AppearanceOut(BaseModel):
     interactive_dots: bool
     form_opacity_percent: int
     form_blur_px: int
+    parallax_enabled: bool
+    parallax_strength: float
 
     model_config = {"from_attributes": True}
 
@@ -34,6 +36,8 @@ class UpdateAppearanceRequest(BaseModel):
     interactive_dots: bool = True
     form_opacity_percent: int = 90
     form_blur_px: int = 4
+    parallax_enabled: bool = False
+    parallax_strength: float = 1.0
 
     @field_validator("background_style")
     @classmethod
@@ -79,6 +83,11 @@ class UpdateAppearanceRequest(BaseModel):
     def validate_blur(cls, v: int) -> int:
         return max(0, min(v, 20))
 
+    @field_validator("parallax_strength")
+    @classmethod
+    def validate_parallax_strength(cls, v: float) -> float:
+        return max(0.25, min(v, 3.0))
+
 
 def _get_or_create(db: Session) -> AppearanceSettings:
     settings = db.get(AppearanceSettings, 1)
@@ -112,6 +121,8 @@ async def update_appearance(
     settings.interactive_dots = payload.interactive_dots
     settings.form_opacity_percent = payload.form_opacity_percent
     settings.form_blur_px = payload.form_blur_px
+    settings.parallax_enabled = payload.parallax_enabled
+    settings.parallax_strength = payload.parallax_strength
     db.add(settings)
     db.commit()
     db.refresh(settings)

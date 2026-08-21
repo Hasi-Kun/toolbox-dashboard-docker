@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     is_premium: bool
     premium_badge_color: str
     totp_rotated_at: datetime | None = None
+    microsoft_upn: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -72,6 +73,19 @@ class UpdateUserRequest(BaseModel):
     invite_quota: int | None = None
     is_premium: bool | None = None
     premium_badge_color: str | None = None
+    microsoft_upn: str | None = None
+
+    @field_validator("microsoft_upn")
+    @classmethod
+    def validate_microsoft_upn(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None  # leerer String = Verknuepfung entfernen
+        if "@" not in v or len(v) > 255:
+            raise ValueError("Ungueltige UPN/E-Mail-Adresse")
+        return v
 
     @field_validator("role")
     @classmethod
@@ -162,6 +176,18 @@ async def update_user(
     if payload.premium_badge_color is not None:
         changes.append(f"premium_badge_color={payload.premium_badge_color}")
         user.premium_badge_color = payload.premium_badge_color
+    if "microsoft_upn" in payload.model_fields_set:
+        # Sonderfall: ein leerer String wird vom Validator zu None normalisiert
+        # (= Verknuepfung entfernen) -- deshalb hier explizit pruefen, OB das
+        # Feld ueberhaupt im Request-JSON mitgeschickt wurde (model_fields_set),
+        # statt nur "is not None" zu pruefen (das wuerde "entfernen" nicht von
+        # "gar nicht angegeben" unterscheiden koennen).
+        if payload.microsoft_upn:
+            existing = db.query(User).filter(User.microsoft_upn == payload.microsoft_upn, User.id != user.id).first()
+            if existing is not None:
+                raise HTTPException(status_code=400, detail=f"Diese Microsoft-UPN ist bereits mit Konto '{existing.username}' verknuepft.")
+        changes.append(f"microsoft_upn={payload.microsoft_upn or '(entfernt)'}")
+        user.microsoft_upn = payload.microsoft_upn
 
     db.add(user)
     db.commit()

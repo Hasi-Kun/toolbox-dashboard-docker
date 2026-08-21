@@ -8,7 +8,7 @@ Fremdabhaengigkeit).
 import pytest
 from pydantic import ValidationError
 
-from app.modules.utilities.ntlm_hash import NtlmHashGeneratorModule, _md4, ntlm_hash
+from app.modules.converter.ntlm_hash import NtlmHashGeneratorModule, _md4, ntlm_hash
 
 
 # --- MD4-Kernimplementierung gegen RFC 1320 --------------------------------

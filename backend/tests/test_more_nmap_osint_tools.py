@@ -12,7 +12,7 @@ from tests.conftest import create_admin as _create_admin
 
 
 def test_nmap_host_discovery_rejects_invalid_target():
-    from app.modules.nmap.host_discovery import NmapHostDiscoveryModule
+    from app.modules.scanner.host_discovery import NmapHostDiscoveryModule
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
@@ -20,7 +20,7 @@ def test_nmap_host_discovery_rejects_invalid_target():
 
 
 def test_nmap_full_port_scan_rejects_invalid_target():
-    from app.modules.nmap.full_port_scan import NmapFullPortScanModule
+    from app.modules.scanner.full_port_scan import NmapFullPortScanModule
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
@@ -28,7 +28,7 @@ def test_nmap_full_port_scan_rejects_invalid_target():
 
 
 def test_nmap_vuln_scan_rejects_invalid_target():
-    from app.modules.nmap.vuln_scan import NmapVulnScanModule
+    from app.modules.scanner.vuln_scan import NmapVulnScanModule
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):

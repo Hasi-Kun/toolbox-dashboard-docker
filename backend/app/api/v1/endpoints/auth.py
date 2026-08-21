@@ -7,6 +7,7 @@ from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 from app.api.deps import get_current_user
 from app.core.audit import get_client_ip, log_audit_event
+from app.core.captcha import is_captcha_required, verify_captcha
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.ip_restriction import is_ip_allowed
@@ -60,6 +61,7 @@ async def _resolve_pending(pending_id: str, db: Session) -> tuple[dict, User]:
 class LoginRequest(BaseModel):
     username: str
     password: str
+    captcha_token: str | None = None
 
 
 class LoginResponse(BaseModel):
@@ -115,8 +117,16 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     # IP-Limit sonst umgehen koennte.
     await enforce_account_lockout(payload.username)
 
-    user = db.query(User).filter(User.username == payload.username).first()
     ip = get_client_ip(request)
+
+    # Captcha-Pruefung VOR dem eigentlichen Login-Versuch -- so wird ein
+    # Bot-Flood schon hier abgefangen, bevor er ueberhaupt die Konto-
+    # Sperr-/Passwort-Logik erreicht. No-Op, solange kein Captcha in den
+    # Sicherheitseinstellungen konfiguriert ist.
+    if is_captcha_required(db, "login") and not await verify_captcha(db, payload.captcha_token, ip):
+        raise HTTPException(status_code=400, detail="Captcha-Pruefung fehlgeschlagen. Bitte erneut versuchen.")
+
+    user = db.query(User).filter(User.username == payload.username).first()
 
     # Bewusst derselbe Fehlertext bei unbekanntem Username UND falschem
     # Passwort -- verhindert, dass ein Angreifer gueltige Usernamen erraten kann.
@@ -161,6 +171,7 @@ class RegisterRequest(BaseModel):
     invite_code: str
     username: str
     password: str
+    captcha_token: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -182,6 +193,9 @@ class RegisterRequest(BaseModel):
 async def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     # Rate-Limit verhindert Brute-Forcing von Invite-Codes
     await enforce_rate_limit(request, bucket="auth-register", limit=settings.login_rate_limit_per_minute)
+
+    if is_captcha_required(db, "register") and not await verify_captcha(db, payload.captcha_token, get_client_ip(request)):
+        raise HTTPException(status_code=400, detail="Captcha-Pruefung fehlgeschlagen. Bitte erneut versuchen.")
 
     invite = db.query(InviteCode).filter(InviteCode.code == payload.invite_code.strip()).first()
     if invite is None:

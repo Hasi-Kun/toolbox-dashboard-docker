@@ -18,6 +18,7 @@ type UserRow = {
   is_premium: boolean;
   premium_badge_color: string;
   totp_rotated_at: string | null;
+  microsoft_upn: string | null;
 };
 
 export default function UsersSettingsPage() {
@@ -113,6 +114,22 @@ export default function UsersSettingsPage() {
     await loadUsers();
   }
 
+  async function handleSetMicrosoftUpn(user: UserRow, upn: string) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ microsoft_upn: upn }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    }
+  }
+
   async function handleTogglePremium(user: UserRow) {
     await fetch(`/api/users/${user.id}`, {
       method: "PATCH",
@@ -204,6 +221,7 @@ export default function UsersSettingsPage() {
                   <th className="px-4 py-3">{t("users.col_status")}</th>
                   <th className="px-4 py-3">{t("users.col_2fa")}</th>
                   <th className="px-4 py-3">{t("users.col_2fa_age")}</th>
+                  <th className="px-4 py-3">{t("users.col_microsoft_sso")}</th>
                   <th className="px-4 py-3">{t("users.col_invite_quota")}</th>
                   <th className="px-4 py-3">{t("users.col_premium")}</th>
                   <th className="px-4 py-3 text-right">{t("users.col_actions")}</th>
@@ -240,6 +258,19 @@ export default function UsersSettingsPage() {
                           </span>
                         );
                       })()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={user.microsoft_upn ?? ""}
+                        placeholder={t("users.microsoft_upn_placeholder")}
+                        onBlur={(e) => {
+                          if (e.target.value !== (user.microsoft_upn ?? "")) {
+                            handleSetMicrosoftUpn(user, e.target.value);
+                          }
+                        }}
+                        className="input w-44 text-xs"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input

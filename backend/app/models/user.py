@@ -46,6 +46,13 @@ class User(Base):
     # verlaengert sich bei jeder Aktivitaet). NULL = globalen Standard
     # aus den Server-Einstellungen verwenden.
     session_timeout_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Microsoft-365-SSO: verknuepft dieses Konto mit einer M365-Identitaet
+    # (User Principal Name, z.B. "max.muster@firma.de"). NULL = SSO fuer
+    # dieses Konto nicht aktiviert -- ein Admin muss es explizit setzen
+    # (kein automatisches Anlegen neuer Konten ueber SSO, konsistent mit
+    # dem Invite-only-Prinzip). Unique, damit nicht zwei lokale Konten
+    # versehentlich an dieselbe M365-Identitaet gebunden werden.
+    microsoft_upn: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -116,6 +123,42 @@ class AppearanceSettings(Base):
     # docs/ARCHITECTURE.md fuer die Lehre aus einem frueheren Incident mit
     # NOT-NULL-Spalten ohne server_default).
     chat_last_cleared_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Parallax-Effekt auf der Login-Seite: Hintergrund-Ebene und Formular-
+    # Karte verschieben sich leicht gegenlaeufig zur Mausbewegung (Tiefen-
+    # Illusion). Wirkt auf allen background_style-Varianten ausser "none".
+    parallax_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+    # Staerke der Verschiebung, 0.25 (kaum merklich) bis 3 (sehr stark),
+    # 1 = Standard. Skaliert sowohl die Bewegung selbst als auch den
+    # noetigen Ueberstand des Hintergrunds ueber den Viewport hinaus
+    # (siehe login/page.tsx) -- je staerker die Bewegung, desto mehr
+    # Ueberstand ist noetig, damit nie eine Kante sichtbar wird.
+    parallax_strength: Mapped[float] = mapped_column(default=1.0, server_default=text("1.0"), nullable=False)
+
+
+class SecuritySettings(Base):
+    """Instanzweite Sicherheits-Einstellung (Singleton, id=1) -- aktuell nur
+    Captcha-Konfiguration (Cloudflare Turnstile oder Google reCAPTCHA) fuer
+    Login/Registrierung. Bewusst getrennt von AppearanceSettings: der
+    Secret-Key ist sensibel und darf NIE ueber den oeffentlichen
+    (unauthentifizierten) Endpunkt zurueckgegeben werden, den die Login-
+    Seite abfragt -- siehe app/api/v1/endpoints/security_settings.py fuer
+    den Split zwischen dem oeffentlichen (nur Site-Key+Provider) und dem
+    admin-only Endpunkt (inkl. Secret-Key).
+    """
+
+    __tablename__ = "security_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # "none" | "turnstile" | "recaptcha"
+    captcha_provider: Mapped[str] = mapped_column(String(16), default="none", server_default=text("'none'"), nullable=False)
+    captcha_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+    # Site-Key ist per Definition oeffentlich (steht im HTML der Login-Seite),
+    # Secret-Key wird NUR serverseitig fuer die Verifikation genutzt.
+    captcha_site_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    captcha_secret_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Auf welchen Formularen der Captcha-Check greift.
+    captcha_on_login: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"), nullable=False)
+    captcha_on_register: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"), nullable=False)
 
 
 class Favorite(Base):

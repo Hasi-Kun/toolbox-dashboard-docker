@@ -73,6 +73,37 @@ def test_appearance_update_persists_and_is_publicly_visible(client):
     assert r.json()["custom_background_url"] == "https://example.com/bg.jpg"
 
 
+def test_appearance_parallax_defaults_false_and_can_be_enabled(client):
+    r = client.get("/api/v1/appearance")
+    assert r.json()["parallax_enabled"] is False
+    assert r.json()["parallax_strength"] == 1.0
+
+    password = _create_admin()
+    _login_with_totp_setup(client, "admin", password)
+    r = client.patch("/api/v1/appearance", json={"background_style": "dots", "parallax_enabled": True, "parallax_strength": 2.5})
+    assert r.status_code == 200
+    assert r.json()["parallax_enabled"] is True
+    assert r.json()["parallax_strength"] == 2.5
+
+    client.cookies.clear()
+    r = client.get("/api/v1/appearance")
+    assert r.json()["parallax_enabled"] is True
+    assert r.json()["parallax_strength"] == 2.5
+
+
+def test_appearance_parallax_strength_clamped_to_valid_range(client):
+    password = _create_admin()
+    _login_with_totp_setup(client, "admin", password)
+
+    r = client.patch("/api/v1/appearance", json={"background_style": "dots", "parallax_strength": 99})
+    assert r.status_code == 200
+    assert r.json()["parallax_strength"] == 3.0
+
+    r = client.patch("/api/v1/appearance", json={"background_style": "dots", "parallax_strength": 0.01})
+    assert r.status_code == 200
+    assert r.json()["parallax_strength"] == 0.25
+
+
 def test_appearance_rejects_non_http_url():
     from app.api.v1.endpoints.appearance import UpdateAppearanceRequest
     from pydantic import ValidationError

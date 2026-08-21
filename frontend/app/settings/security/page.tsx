@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, KeyRound, Loader2, MapPin, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } from "lucide-react";
+import { Bot, Clock, KeyRound, Loader2, MapPin, Plus, ShieldCheck, ShieldOff, Smartphone, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
@@ -44,6 +44,15 @@ export default function SecuritySettingsPage() {
   const [effectiveTimeoutMinutes, setEffectiveTimeoutMinutes] = useState<number | null>(null);
   const [savingTimeout, setSavingTimeout] = useState(false);
 
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [captchaProvider, setCaptchaProvider] = useState("none");
+  const [captchaEnabled, setCaptchaEnabled] = useState(false);
+  const [captchaSiteKey, setCaptchaSiteKey] = useState("");
+  const [captchaSecretKey, setCaptchaSecretKey] = useState("");
+  const [captchaOnLogin, setCaptchaOnLogin] = useState(true);
+  const [captchaOnRegister, setCaptchaOnRegister] = useState(true);
+  const [savingCaptcha, setSavingCaptcha] = useState(false);
+
   async function loadStatus() {
     const res = await fetch("/api/account/2fa");
     if (res.ok) setStatus(await res.json());
@@ -72,7 +81,66 @@ export default function SecuritySettingsPage() {
         }
       })
       .catch(() => {});
+
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        const admin = me?.role === "admin";
+        setIsAdmin(admin);
+        if (admin) loadCaptchaSettings();
+      })
+      .catch(() => {});
   }, []);
+
+  function loadCaptchaSettings() {
+    fetch("/api/security-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setCaptchaProvider(data.provider);
+          setCaptchaEnabled(data.enabled);
+          setCaptchaSiteKey(data.site_key ?? "");
+          setCaptchaSecretKey(data.secret_key ?? "");
+          setCaptchaOnLogin(data.on_login);
+          setCaptchaOnRegister(data.on_register);
+        }
+      })
+      .catch(() => {});
+  }
+
+  async function handleSaveCaptcha(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setSavingCaptcha(true);
+    try {
+      const res = await fetch("/api/security-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: captchaProvider,
+          enabled: captchaEnabled,
+          site_key: captchaSiteKey || null,
+          secret_key: captchaSecretKey || null,
+          on_login: captchaOnLogin,
+          on_register: captchaOnRegister,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Speichern fehlgeschlagen");
+      setCaptchaProvider(data.provider);
+      setCaptchaEnabled(data.enabled);
+      setCaptchaSiteKey(data.site_key ?? "");
+      setCaptchaSecretKey(data.secret_key ?? "");
+      setCaptchaOnLogin(data.on_login);
+      setCaptchaOnRegister(data.on_register);
+      setNotice(t("security.captcha_saved"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setSavingCaptcha(false);
+    }
+  }
 
   async function handleSaveAllowedIps(e: React.FormEvent) {
     e.preventDefault();
@@ -405,6 +473,92 @@ export default function SecuritySettingsPage() {
               </button>
             </form>
           </section>
+
+          {isAdmin && (
+            <section className="mt-6 rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">
+              <h2 className="flex items-center gap-2 font-display text-base text-ink">
+                <Bot className="h-4 w-4" /> {t("security.captcha_heading")}
+              </h2>
+              <p className="mt-1 text-sm text-ink-muted">{t("security.captcha_description")}</p>
+              <p className="mt-1 text-xs text-ink-muted">{t("security.captcha_cloudflare_hint")}</p>
+
+              <form onSubmit={handleSaveCaptcha} className="mt-4 space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={captchaEnabled}
+                      onChange={(e) => setCaptchaEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-base-border accent-signal"
+                    />
+                    {t("security.captcha_enabled_label")}
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.captcha_provider_label")}</span>
+                    <select
+                      value={captchaProvider}
+                      onChange={(e) => setCaptchaProvider(e.target.value)}
+                      className="input w-56"
+                    >
+                      <option value="none">{t("security.captcha_provider_none")}</option>
+                      <option value="turnstile">Cloudflare Turnstile</option>
+                      <option value="recaptcha">Google reCAPTCHA</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.captcha_site_key_label")}</span>
+                    <input
+                      type="text"
+                      value={captchaSiteKey}
+                      onChange={(e) => setCaptchaSiteKey(e.target.value)}
+                      placeholder={t("security.captcha_site_key_placeholder")}
+                      className="input font-mono text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-ink-muted">{t("security.captcha_secret_key_label")}</span>
+                    <input
+                      type="password"
+                      value={captchaSecretKey}
+                      onChange={(e) => setCaptchaSecretKey(e.target.value)}
+                      placeholder={t("security.captcha_secret_key_placeholder")}
+                      autoComplete="off"
+                      className="input font-mono text-sm"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={captchaOnLogin}
+                      onChange={(e) => setCaptchaOnLogin(e.target.checked)}
+                      className="h-4 w-4 rounded border-base-border accent-signal"
+                    />
+                    {t("security.captcha_on_login_label")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={captchaOnRegister}
+                      onChange={(e) => setCaptchaOnRegister(e.target.checked)}
+                      className="h-4 w-4 rounded border-base-border accent-signal"
+                    />
+                    {t("security.captcha_on_register_label")}
+                  </label>
+                </div>
+
+                <button type="submit" disabled={savingCaptcha} className="submit-button w-auto px-4">
+                  {savingCaptcha ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.save")}
+                </button>
+              </form>
+            </section>
+          )}
         </main>
       </div>
     </div>

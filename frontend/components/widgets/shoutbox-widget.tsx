@@ -73,7 +73,7 @@ export function ShoutboxWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-base-border bg-base-elevated p-4 shadow-card">
+    <div className="animate-stagger-in flex h-full flex-col rounded-xl border border-base-border bg-base-elevated p-4 shadow-card" style={{ animationDelay: "260ms" }}>
       <div className="flex items-center gap-2 text-ink-muted">
         <MessageSquare className="h-4 w-4" />
         <span className="text-sm">Shoutbox</span>

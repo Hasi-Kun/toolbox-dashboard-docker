@@ -233,7 +233,7 @@ async def test_wayback_history_handles_rate_limit():
 
 @pytest.mark.asyncio
 async def test_fastviewer_status_checks_update_server_and_list():
-    from app.modules.utilities.fastviewer_status import FastviewerStatusModule
+    from app.modules.network.fastviewer_status import FastviewerStatusModule
 
     class FakeResponse:
         status_code = 200
@@ -245,7 +245,7 @@ async def test_fastviewer_status_checks_update_server_and_list():
     async def fake_query(hostname, record_type, timeout=5):
         return {"success": True, "records": ["203.0.113.5"], "error": None}
 
-    with patch("httpx.AsyncClient.get", new=fake_get), patch("app.modules.utilities.fastviewer_status.query", new=fake_query):
+    with patch("httpx.AsyncClient.get", new=fake_get), patch("app.modules.network.fastviewer_status.query", new=fake_query):
         result = await FastviewerStatusModule().run(FastviewerStatusModule.Input())
 
     assert result.success is True

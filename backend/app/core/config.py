@@ -48,6 +48,22 @@ class Settings(BaseSettings):
     # (siehe docs/ARCHITECTURE.md -- niemals direkter Socket-Zugriff)
     docker_proxy_url: str = "http://docker-socket-proxy:2375"
 
+    # --- Microsoft 365 SSO (optional) ---
+    # Registrierung in Azure AD / Microsoft Entra ID: App-Registrierung
+    # anlegen, Redirect-URI auf <webauthn_origin>/api/v1/auth/sso/microsoft/callback
+    # setzen, "openid", "profile", "email" als Berechtigungen. Client-
+    # Secret NIE ins Repo, nur per .env/Umgebungsvariable.
+    #
+    # WICHTIG: SSO-Login ist bewusst nur fuer bereits per Admin angelegte
+    # Konten moeglich (kein automatisches Anlegen neuer Nutzer ueber SSO)
+    # -- konsistent mit dem bestehenden Invite-only-Prinzip. Ein Admin
+    # verknuepft ein bestehendes Konto ueber dessen "microsoft_upn"-Feld
+    # mit der M365-Identitaet.
+    ms_sso_enabled: bool = False
+    ms_sso_client_id: str | None = None
+    ms_sso_client_secret: str | None = None
+    ms_sso_tenant_id: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

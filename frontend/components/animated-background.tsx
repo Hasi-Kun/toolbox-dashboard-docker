@@ -13,8 +13,13 @@ export interface AnimatedBackgroundProps {
   gradientColor?: string;
   /** Nur fuer "dots": Partikel reagieren auf Mausbewegung */
   interactive?: boolean;
-  /** Skaliert den Effekt auf den Elternconainer statt auf den Viewport
-   * (fuer die Live-Vorschau in den Einstellungen). */
+  /** Skaliert den Effekt auf den Elternconainer statt auf den Viewport.
+   * Zwei Anwendungsfaelle: die Live-Vorschau in den Einstellungen (dort
+   * ist der Elternconainer kleiner als der Viewport), UND der Parallax-
+   * Effekt auf Login/Registrierung (dort ist der Elternconainer per CSS
+   * absichtlich GROESSER als der Viewport -- siehe login/page.tsx). In
+   * beiden Faellen soll sich der Hintergrund exakt an die tatsaechliche
+   * Groesse seines Elternelements anpassen, nicht an den Viewport. */
   contained?: boolean;
 }
 
@@ -74,7 +79,19 @@ function hexToRgba(hex: string, alpha: number): string {
 
 /** Gemeinsame Canvas-Partikel-Engine fuer "Connecting Dots" (teal, mit
  * Verbindungslinien + Mausinteraktion) und "Sternenhimmel" (weiss/blau,
- * langsames Funkeln, keine Linien, kein Maus-Tracking noetig). */
+ * langsames Funkeln, keine Linien, kein Maus-Tracking noetig).
+ *
+ * Groessen-Logik bewusst EINHEITLICH: im "contained"-Modus (egal ob
+ * fuer die Einstellungs-Vorschau oder den Parallax-Wrapper) wird IMMER
+ * an canvas.parentElement.clientWidth/Height gemessen -- der Browser
+ * berechnet diese Groesse selbst korrekt, auch wenn der Elternconainer
+ * per CSS ueber den Viewport hinausragt (position:fixed mit negativem
+ * inset). Eine fruehere Version hat stattdessen manuell
+ * "window.innerWidth + eigene Marge" gerechnet UND zusaetzlich das
+ * Canvas selbst nochmal separat "position:fixed" positioniert -- zwei
+ * unabhaengige Positionierungs-Rechnungen, die bei einer Verschiebung
+ * (Parallax) nicht mehr exakt zueinander gepasst haben und sichtbare
+ * Raender am Rand freigelegt haben. */
 function Particles({
   mode,
   speed,
@@ -106,8 +123,8 @@ function Particles({
 
     const isStarfield = mode === "starfield";
     const COUNT = isStarfield
-      ? Math.min(160, Math.max(60, Math.floor((width * height) / 9000)))
-      : Math.min(90, Math.max(30, Math.floor((width * height) / 16000)));
+      ? Math.min(220, Math.max(60, Math.floor((width * height) / 9000)))
+      : Math.min(120, Math.max(30, Math.floor((width * height) / 16000)));
     const MAX_DIST = 140;
     const baseVelocity = isStarfield ? 0.06 : 0.25;
 
@@ -146,6 +163,15 @@ function Particles({
       canvas!.height = height;
     }
     window.addEventListener("resize", resize);
+    // ResizeObserver zusaetzlich zum resize-Listener: bei "contained"
+    // aendert sich die Groesse des Elternconainers moeglicherweise OHNE
+    // ein Viewport-Resize (z.B. wenn sich die Parallax-Staerke aendert
+    // und dadurch die inset-Marge des Wrapper-Divs neu berechnet wird).
+    let resizeObserver: ResizeObserver | undefined;
+    if (contained && canvas.parentElement && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(canvas.parentElement);
+    }
 
     let animationFrame: number;
     let t = 0;
@@ -232,6 +258,7 @@ function Particles({
 
     return () => {
       window.removeEventListener("resize", resize);
+      resizeObserver?.disconnect();
       if (mode === "dots" && interactive) {
         const target = contained ? canvas : window;
         target.removeEventListener("pointermove", handlePointerMove as EventListener);

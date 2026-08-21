@@ -6,6 +6,8 @@ import Link from "next/link";
 import { KeyRound, Loader2, Radar, ShieldCheck, Smartphone } from "lucide-react";
 import { authenticateWithPasskey, isWebAuthnSupported, registerPasskey } from "@/lib/webauthn-client";
 import { AnimatedBackground, type BackgroundStyle } from "@/components/animated-background";
+import { CaptchaWidget, type PublicCaptchaConfig } from "@/components/captcha-widget";
+import { useParallax } from "@/lib/use-parallax";
 import { useLanguage } from "@/components/language-provider";
 import { Languages } from "lucide-react";
 
@@ -35,6 +37,9 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [captchaConfig, setCaptchaConfig] = useState<PublicCaptchaConfig>({ provider: "none", enabled: false, site_key: null });
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<{
     background_style: BackgroundStyle;
     custom_background_url: string | null;
@@ -43,6 +48,8 @@ export default function LoginPage() {
     interactive_dots: boolean;
     form_opacity_percent: number;
     form_blur_px: number;
+    parallax_enabled: boolean;
+    parallax_strength: number;
   }>({
     background_style: "dots",
     custom_background_url: null,
@@ -51,13 +58,37 @@ export default function LoginPage() {
     interactive_dots: true,
     form_opacity_percent: 90,
     form_blur_px: 4,
+    parallax_enabled: false,
+    parallax_strength: 1,
   });
+
+  const parallax = useParallax(appearance.parallax_enabled);
+  // Maximale Verschiebung des Hintergrunds in px, skaliert mit der
+  // Staerke -- der Wrapper unten wird um GENAU diesen Betrag groesser
+  // als der Viewport gerendert (plus Sicherheitspuffer), damit bei
+  // JEDER moeglichen Mausposition nie eine Kante sichtbar wird.
+  const maxBackgroundShiftPx = 16 * appearance.parallax_strength;
+  const parallaxMarginPx = Math.ceil(maxBackgroundShiftPx + 24);
 
   useEffect(() => {
     fetch("/api/appearance")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) setAppearance(data);
+      })
+      .catch(() => {});
+
+    fetch("/api/auth/sso/microsoft/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setSsoEnabled(data.enabled === true);
+      })
+      .catch(() => {});
+
+    fetch("/api/security-settings/public")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setCaptchaConfig(data);
       })
       .catch(() => {});
   }, []);
@@ -67,7 +98,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const data = await postJson("/api/auth/login", { username, password });
+      const data = await postJson("/api/auth/login", { username, password, captcha_token: captchaToken });
       if (data.needs_2fa_setup) {
         setStep({ name: "choose_2fa", pendingToken: data.pending_token, methods: [] });
       } else if (data.available_methods.length > 1) {
@@ -161,13 +192,42 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <AnimatedBackground
-        style={appearance.background_style}
-        customUrl={appearance.custom_background_url}
-        speed={appearance.animation_speed}
-        gradientColor={appearance.gradient_color}
-        interactive={appearance.interactive_dots}
-      />
+      {/* Bei aktivem Parallax ist dieser Wrapper absichtlich GROESSER als
+          der Viewport (fixed, negativer inset = Ueberstand auf allen vier
+          Seiten) und wird per transform verschoben -- der Ueberstand
+          verhindert, dass die Verschiebung eine Kante des Hintergrunds
+          sichtbar macht. AnimatedBackground laeuft dabei im "contained"-
+          Modus und misst seine Groesse am tatsaechlich gerenderten
+          Elternconainer (der Browser berechnet dessen Groesse selbst
+          korrekt inkl. Ueberstand) statt an einer manuell nachgerechneten
+          Marge -- das war der Kern des vorherigen Bugs: zwei unabhaengige
+          Positionierungs-Rechnungen (Wrapper und Canvas), die bei
+          Verschiebung nicht mehr exakt zusammenpassten. Ohne Parallax
+          bleibt es beim einfachen "fixed inset-0" direkt auf dem Viewport. */}
+      <div
+        className={appearance.parallax_enabled ? "fixed" : "absolute inset-0"}
+        style={
+          appearance.parallax_enabled
+            ? {
+                top: -parallaxMarginPx,
+                left: -parallaxMarginPx,
+                right: -parallaxMarginPx,
+                bottom: -parallaxMarginPx,
+                transform: `translate3d(${parallax.x * -maxBackgroundShiftPx}px, ${parallax.y * -maxBackgroundShiftPx}px, 0)`,
+                transition: "transform 120ms ease-out",
+              }
+            : undefined
+        }
+      >
+        <AnimatedBackground
+          style={appearance.background_style}
+          customUrl={appearance.custom_background_url}
+          speed={appearance.animation_speed}
+          gradientColor={appearance.gradient_color}
+          interactive={appearance.interactive_dots}
+          contained={appearance.parallax_enabled}
+        />
+      </div>
       <button
         type="button"
         onClick={() => setLanguage(language === "de" ? "en" : "de")}
@@ -178,10 +238,16 @@ export default function LoginPage() {
         {language}
       </button>
       <div
-        className="relative w-full max-w-sm rounded-xl border border-base-border p-6 shadow-card"
+        className="glass-card relative w-full max-w-sm rounded-xl p-6"
         style={{
           backgroundColor: `rgba(17, 26, 46, ${appearance.form_opacity_percent / 100})`,
-          backdropFilter: appearance.form_blur_px > 0 ? `blur(${appearance.form_blur_px}px)` : undefined,
+          backdropFilter: appearance.form_blur_px > 0 ? `blur(${appearance.form_blur_px}px) saturate(150%)` : undefined,
+          ...(appearance.parallax_enabled
+            ? {
+                transform: `perspective(1200px) rotateX(${parallax.y * -2.5 * appearance.parallax_strength}deg) rotateY(${parallax.x * 2.5 * appearance.parallax_strength}deg) translate3d(${parallax.x * 6 * appearance.parallax_strength}px, ${parallax.y * 6 * appearance.parallax_strength}px, 0)`,
+                transition: "transform 120ms ease-out",
+              }
+            : {}),
         }}
       >
         <div className="mb-6 flex items-center gap-2">
@@ -215,8 +281,31 @@ export default function LoginPage() {
                 autoComplete="current-password"
               />
             </Field>
+            <CaptchaWidget config={captchaConfig} onToken={setCaptchaToken} />
             <SubmitButton loading={loading}>{t("login.continue")}</SubmitButton>
           </form>
+        )}
+
+        {step.name === "password" && ssoEnabled && (
+          <div className="mt-4">
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-base-border" />
+              <span className="text-xs text-ink-muted">{t("login.or")}</span>
+              <span className="h-px flex-1 bg-base-border" />
+            </div>
+            <a
+              href="/api/auth/sso/microsoft/login"
+              className="method-button mt-4 justify-center"
+            >
+              <svg viewBox="0 0 21 21" className="h-4 w-4" aria-hidden="true">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              {t("login.sso_microsoft")}
+            </a>
+          </div>
         )}
 
         {step.name === "password" && (

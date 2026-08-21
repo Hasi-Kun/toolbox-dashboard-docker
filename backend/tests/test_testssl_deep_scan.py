@@ -22,32 +22,36 @@ def _login_with_totp_setup(client, username: str, password: str) -> str:
     return secret
 
 
-def test_testssl_module_registered_with_own_category():
+def test_testssl_module_registered_in_scanner_category():
+    """War 'test_testssl_module_registered_with_own_category' -- seit der
+    Kategorien-Reorganisation ist testssl-deep-scan Teil der
+    zusammengefuehrten 'scanner'-Kategorie statt einer eigenen 'testssl'-
+    Kategorie mit nur einem Modul."""
     from app.modules import get_registry
 
     registry = get_registry()
     assert "testssl-deep-scan" in registry
-    assert registry["testssl-deep-scan"].category == "testssl"
+    assert registry["testssl-deep-scan"].category == "scanner"
     assert registry["testssl-deep-scan"].is_active_scan is True
     assert registry["testssl-deep-scan"].requires_admin is True
 
 
 def test_testssl_input_rejects_invalid_target():
-    from app.modules.testssl.deep_scan import TestsslDeepScanModule
+    from app.modules.scanner.testssl_deep_scan import TestsslDeepScanModule
 
     with pytest.raises(ValidationError):
         TestsslDeepScanModule.Input(target="; rm -rf /")
 
 
 def test_testssl_input_rejects_invalid_port():
-    from app.modules.testssl.deep_scan import TestsslDeepScanModule
+    from app.modules.scanner.testssl_deep_scan import TestsslDeepScanModule
 
     with pytest.raises(ValidationError):
         TestsslDeepScanModule.Input(target="example.com", port=99999)
 
 
 def test_testssl_parse_scan_result_counts_vulnerabilities():
-    from app.modules.testssl.deep_scan import TestsslDeepScanModule
+    from app.modules.scanner.testssl_deep_scan import TestsslDeepScanModule
 
     module = TestsslDeepScanModule()
     data = TestsslDeepScanModule.Input(target="example.com")
@@ -66,7 +70,7 @@ def test_testssl_parse_scan_result_counts_vulnerabilities():
 
 
 def test_testssl_parse_scan_result_handles_error():
-    from app.modules.testssl.deep_scan import TestsslDeepScanModule
+    from app.modules.scanner.testssl_deep_scan import TestsslDeepScanModule
 
     module = TestsslDeepScanModule()
     data = TestsslDeepScanModule.Input(target="example.com")

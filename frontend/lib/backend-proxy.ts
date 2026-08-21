@@ -3,6 +3,60 @@ import { NextRequest, NextResponse } from "next/server";
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL ?? "http://toolbox-backend:8000";
 
 /**
+ * Wie proxyToBackend, aber fuer Endpunkte, deren Antwort selbst eine
+ * Weiterleitung ist (z.B. der Microsoft-SSO-Login/Callback-Flow) --
+ * normales fetch() wuerde 3xx-Antworten automatisch SERVERSEITIG
+ * verfolgen (redirect: "follow" ist der Default), wodurch der eigentliche
+ * Browser NIE zu Microsoft weitergeleitet wuerde, sondern unser eigener
+ * Next.js-Server Microsofts Seite abrufen und deren Inhalt (nutzlos)
+ * zurueckgeben wuerde. Hier wird redirect: "manual" gesetzt und die
+ * 3xx-Antwort (Location + eventuelle Set-Cookie-Header) 1:1 an den
+ * echten Browser durchgereicht.
+ */
+export async function proxyRedirectToBackend(request: NextRequest, backendPath: string): Promise<NextResponse> {
+  const cookie = request.headers.get("cookie") ?? "";
+  const queryString = request.nextUrl.search;
+  const targetUrl = `${BACKEND_URL}${backendPath}${queryString}`;
+
+  let backendResponse: Response;
+  try {
+    backendResponse = await fetch(targetUrl, {
+      method: "GET",
+      headers: {
+        cookie,
+        "x-real-ip": request.headers.get("x-real-ip") ?? "",
+        "cf-connecting-ip": request.headers.get("cf-connecting-ip") ?? "",
+        "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+      },
+      redirect: "manual",
+      cache: "no-store",
+    });
+  } catch {
+    return NextResponse.json({ detail: "Backend nicht erreichbar" }, { status: 502 });
+  }
+
+  // 3xx = wie erwartet eine Weiterleitung (zu Microsoft oder nach dem
+  // erfolgreichen Login zurueck ins Dashboard) -- 1:1 an den Browser
+  // durchreichen, inklusive Set-Cookie (z.B. das Session-Cookie nach
+  // erfolgreichem SSO-Login).
+  if (backendResponse.status >= 300 && backendResponse.status < 400) {
+    const location = backendResponse.headers.get("location") ?? "/";
+    const response = NextResponse.redirect(location, backendResponse.status);
+    const setCookieHeaders = backendResponse.headers.getSetCookie?.() ?? [];
+    for (const value of setCookieHeaders) {
+      response.headers.append("Set-Cookie", value);
+    }
+    return response;
+  }
+
+  // Kein Redirect (z.B. ein Fehler wie 400/403/404) -- normal als JSON durchreichen.
+  const data = await backendResponse.text();
+  return new NextResponse(data, {
+    status: backendResponse.status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+/**
  * Leitet einen Request an das interne Backend weiter und reicht dabei
  * Cookies in BEIDE Richtungen durch:
  *  - Request-Cookies (Session) werden an das Backend weitergegeben

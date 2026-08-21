@@ -34,7 +34,19 @@ export function Topbar() {
 
   useEffect(() => {
     fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        // 401 bedeutet: die Session-Cookie ist zwar noch vorhanden (sonst
+        // haette die Middleware schon vorher auf /login umgeleitet), aber
+        // ungueltig geworden -- z.B. weil der Redis-Session-Speicher beim
+        // letzten Neustart geleert wurde. Ohne diese Weiterleitung landet
+        // man sonst auf einer Seite, die still vor sich hin 401en wirft,
+        // ohne erkennbaren Ausweg.
+        if (res.status === 401) {
+          router.replace("/login");
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then(setMe)
       .catch(() => setMe(null));
     fetch("/api/tools")
@@ -42,7 +54,7 @@ export function Topbar() {
       .then(setTools)
       .catch(() => setTools([]));
     refreshFavorites();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -149,13 +161,13 @@ export function Topbar() {
         )}
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-1">
         <WebCliManager />
         <button
           type="button"
           onClick={() => setLanguage(language === "de" ? "en" : "de")}
           title={language === "de" ? "Switch to English" : "Auf Deutsch umschalten"}
-          className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-xs font-medium uppercase text-ink-muted hover:text-ink"
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium uppercase text-ink-muted hover:bg-base-border/40 hover:text-ink"
         >
           <Languages className="h-4 w-4" />
           {language}
@@ -167,7 +179,7 @@ export function Topbar() {
               setFavoritesOpen((v) => !v);
               refreshFavorites();
             }}
-            className="flex items-center gap-2 rounded-lg border border-base-border px-3 py-2 text-sm text-ink-muted hover:text-ink"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-base-border/40 hover:text-ink"
           >
             <Star className="h-4 w-4" />
             {t("topbar.favorites")}
@@ -210,7 +222,7 @@ export function Topbar() {
             type="button"
             onClick={() => setSettingsOpen((v) => !v)}
             title={t("topbar.settings")}
-            className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-ink-muted hover:text-ink"
+            className="flex items-center gap-1.5 rounded-lg p-2 text-ink-muted hover:bg-base-border/40 hover:text-ink"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -247,7 +259,7 @@ export function Topbar() {
         </div>
 
         {me && (
-          <div className="flex items-center gap-3 border-l border-base-border pl-3">
+          <div className="ml-2 flex items-center gap-3 border-l border-base-border pl-4">
             <span className="flex items-center gap-1.5 text-sm text-ink-muted">
               <StyledUsername
                 username={me.username}
@@ -263,7 +275,7 @@ export function Topbar() {
               type="button"
               onClick={handleLogout}
               title={t("topbar.logout")}
-              className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-sm text-ink-muted hover:border-critical/40 hover:text-critical"
+              className="flex items-center gap-1.5 rounded-lg p-2 text-ink-muted hover:bg-critical/10 hover:text-critical"
             >
               <LogOut className="h-4 w-4" />
             </button>

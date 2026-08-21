@@ -33,8 +33,8 @@ def test_nikto_scan_has_stricter_per_slug_rate_limit(client):
     password = _create_admin()
     _login_with_totp_setup(client, "admin", password)
 
-    with patch("app.modules.nmap.nikto_scan.wait_for_result", new=_fake_wait_for_result), \
-         patch("app.modules.nmap.nikto_scan.submit_job", new=_fake_submit_job):
+    with patch("app.modules.scanner.nikto_scan.wait_for_result", new=_fake_wait_for_result), \
+         patch("app.modules.scanner.nikto_scan.submit_job", new=_fake_submit_job):
         statuses = [client.post("/api/v1/tools/nikto-scan", json={"target": "example.com"}).status_code for _ in range(4)]
 
     assert statuses[0] == 200 and statuses[1] == 200
@@ -45,8 +45,8 @@ def test_full_port_scan_has_stricter_per_slug_rate_limit(client):
     password = _create_admin()
     _login_with_totp_setup(client, "admin", password)
 
-    with patch("app.modules.nmap.full_port_scan.wait_for_result", new=_fake_wait_for_result), \
-         patch("app.modules.nmap.full_port_scan.submit_job", new=_fake_submit_job):
+    with patch("app.modules.scanner.full_port_scan.wait_for_result", new=_fake_wait_for_result), \
+         patch("app.modules.scanner.full_port_scan.submit_job", new=_fake_submit_job):
         statuses = [client.post("/api/v1/tools/nmap-full-port-scan", json={"target": "example.com"}).status_code for _ in range(4)]
 
     assert statuses[0] == 200 and statuses[1] == 200
@@ -59,13 +59,13 @@ def test_nikto_and_full_port_scan_have_independent_per_slug_buckets(client):
     password = _create_admin()
     _login_with_totp_setup(client, "admin", password)
 
-    with patch("app.modules.nmap.nikto_scan.wait_for_result", new=_fake_wait_for_result), \
-         patch("app.modules.nmap.nikto_scan.submit_job", new=_fake_submit_job):
+    with patch("app.modules.scanner.nikto_scan.wait_for_result", new=_fake_wait_for_result), \
+         patch("app.modules.scanner.nikto_scan.submit_job", new=_fake_submit_job):
         for _ in range(2):
             client.post("/api/v1/tools/nikto-scan", json={"target": "example.com"})
 
-    with patch("app.modules.nmap.full_port_scan.wait_for_result", new=_fake_wait_for_result), \
-         patch("app.modules.nmap.full_port_scan.submit_job", new=_fake_submit_job):
+    with patch("app.modules.scanner.full_port_scan.wait_for_result", new=_fake_wait_for_result), \
+         patch("app.modules.scanner.full_port_scan.submit_job", new=_fake_submit_job):
         r = client.post("/api/v1/tools/nmap-full-port-scan", json={"target": "example.com"})
 
     assert r.status_code == 200, "nmap-full-port-scan sollte trotz ausgeschoepftem nikto-scan-Limit noch gehen"
@@ -78,8 +78,8 @@ def test_quick_scan_not_affected_by_per_slug_limits(client):
     password = _create_admin()
     _login_with_totp_setup(client, "admin", password)
 
-    with patch("app.modules.nmap.quick.wait_for_result", new=_fake_wait_for_result), \
-         patch("app.modules.nmap.quick.submit_job", new=_fake_submit_job):
+    with patch("app.modules.scanner.quick.wait_for_result", new=_fake_wait_for_result), \
+         patch("app.modules.scanner.quick.submit_job", new=_fake_submit_job):
         statuses = [client.post("/api/v1/tools/nmap-quick", json={"target": "example.com"}).status_code for _ in range(3)]
 
     # Kategorieweites Limit (5/Minute) betrifft alle nmap-Tools gemeinsam,

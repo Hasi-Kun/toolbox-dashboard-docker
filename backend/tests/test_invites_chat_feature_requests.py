@@ -392,3 +392,79 @@ def test_online_users_counter(client):
 def test_online_users_requires_auth(client):
     r = client.get("/api/v1/system/online-users")
     assert r.status_code == 401
+
+
+# --- Regressionstest: erledigte Vorschlaege verdraengten neue von Seite 1 ---
+
+def test_done_requests_excluded_from_default_pagination(client):
+    """Der gemeldete Bug: viele hoch bewertete 'erledigte' Vorschlaege
+    verdraengten neue, noch offene Vorschlaege auf eine Folgeseite, weil
+    die Filterung vorher erst NACH der Paginierung im Frontend passierte.
+    Jetzt muss die Backend-Seite 1 bei page_size=25 ausschliesslich
+    offene/geplante Vorschlaege enthalten (Standard: include_archived=false)."""
+    import pyotp
+    from tests.conftest import create_admin as _create_admin
+
+    password = _create_admin()
+    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": password})
+    pending = r.json()["pending_token"]
+    r = client.post("/api/v1/auth/2fa/totp/setup/start", json={"pending_token": pending})
+    secret = r.json()["secret"]
+    code = pyotp.TOTP(secret).now()
+    client.post("/api/v1/auth/2fa/totp/setup/verify", json={"pending_token": pending, "code": code})
+
+    # 30 laengst erledigte, aber sehr hoch bewertete Vorschlaege anlegen
+    # (simuliert die Situation nach vielen umgesetzten Feature-Requests).
+    from app.core.db import SessionLocal
+    from app.models.user import FeatureRequest, FeatureRequestVote, FeatureRequestStatus, User
+
+    # 30 laengst erledigte, aber sehr hoch bewertete Vorschlaege anlegen
+    # (simuliert die Situation nach vielen umgesetzten Feature-Requests)
+    # -- direkt in die DB statt ueber die (absichtlich ratenlimitierte)
+    # API, um beim Testaufbau nicht selbst das Rate-Limit auszuloesen.
+    db = SessionLocal()
+    admin_user = db.query(User).filter_by(username="admin").first()
+    for i in range(30):
+        req = FeatureRequest(
+            user_id=admin_user.id, username="admin", title=f"Erledigt {i}",
+            description="Laengst umgesetzt.", status=FeatureRequestStatus.DONE.value,
+        )
+        db.add(req)
+        db.flush()
+        db.add(FeatureRequestVote(request_id=req.id, user_id=admin_user.id, vote_value=1))
+    db.commit()
+    db.close()
+
+    # Ein neuer, noch offener Vorschlag
+    r = client.post("/api/v1/feature-requests", json={"title": "Brandneuer Vorschlag", "description": "Gerade erst eingereicht."})
+    assert r.status_code == 200
+
+    # Seite 1 (Standard, ohne include_archived) MUSS den neuen Vorschlag zeigen
+    r = client.get("/api/v1/feature-requests?page=1&page_size=25")
+    data = r.json()
+    titles = [item["title"] for item in data["items"]]
+    assert "Brandneuer Vorschlag" in titles, "Neuer Vorschlag haette auf Seite 1 sichtbar sein muessen"
+    assert all(item["status"] not in ("done", "rejected") for item in data["items"])
+
+
+def test_include_archived_shows_done_requests(client):
+    import pyotp
+    from tests.conftest import create_admin as _create_admin
+
+    password = _create_admin()
+    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": password})
+    pending = r.json()["pending_token"]
+    r = client.post("/api/v1/auth/2fa/totp/setup/start", json={"pending_token": pending})
+    secret = r.json()["secret"]
+    code = pyotp.TOTP(secret).now()
+    client.post("/api/v1/auth/2fa/totp/setup/verify", json={"pending_token": pending, "code": code})
+
+    r = client.post("/api/v1/feature-requests", json={"title": "Wird erledigt", "description": "x"})
+    req_id = r.json()["id"]
+    client.patch(f"/api/v1/feature-requests/{req_id}/status", json={"status": "done"})
+
+    r = client.get("/api/v1/feature-requests")
+    assert "Wird erledigt" not in [i["title"] for i in r.json()["items"]]
+
+    r = client.get("/api/v1/feature-requests?include_archived=true")
+    assert "Wird erledigt" in [i["title"] for i in r.json()["items"]]
