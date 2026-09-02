@@ -64,6 +64,46 @@ class Settings(BaseSettings):
     ms_sso_client_secret: str | None = None
     ms_sso_tenant_id: str | None = None
 
+    # --- WebSSH-Webshell (gespeicherte Verbindungen) ---
+    # Symmetrischer Schluessel zum Verschluesseln gespeicherter SSH-
+    # Passwoerter/private Schluessel in der DB. Generieren mit:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Falls NICHT gesetzt: wird ein Schluessel aus session_secret abgeleitet
+    # (funktioniert sofort ohne Zusatzschritt, aber ein dedizierter Key wird
+    # empfohlen -- getrennte Rotation von Session- und Verschluesselungs-
+    # schluessel ist sauberer).
+    ssh_vault_key: str | None = None
+    # Maximale Anzahl gleichzeitig offener WebSSH-Verbindungen PRO NUTZER
+    # (nicht zu verwechseln mit der rein UI-seitigen WebCLI-Fensterbegrenzung
+    # -- hier handelt es sich um echte, serverseitige SSH-Verbindungen, die
+    # tatsaechlich Ressourcen (Sockets, Prozesse) binden).
+    max_ssh_sessions_per_user: int = 5
+
+    # --- Email-Aliase (Verwaltungsebene, siehe EmailAlias-Docstring fuer
+    # den wichtigen Infrastruktur-Hinweis: das hier ist NUR die
+    # Verwaltung, kein tatsaechlicher Mail-Empfang) ---
+    # Kommagetrennte Liste erlaubter Alias-Domains, z.B.
+    # "alias.{{BASE_DOMAIN}},mail-alias.{{BASE_DOMAIN}}" -- bewusst eine feste
+    # Admin-konfigurierte Allowlist statt freier Domain-Eingabe: nur
+    # Domains, fuer die tatsaechlich MX-Records auf einen echten
+    # Empfangsdienst zeigen, ergeben ueberhaupt funktionierende Aliase.
+    email_alias_domains: str = ""
+
+    @property
+    def email_alias_domains_list(self) -> list[str]:
+        return [d.strip() for d in self.email_alias_domains.split(",") if d.strip()]
+
+    # --- AdGuard Home Integration (DNS-Cache leeren) ---
+    # Bewusst ueber AdGuard Homes EIGENE, dafuer vorgesehene REST-API
+    # (POST /control/cache_clear, HTTP-Basic-Auth) -- NICHT ueber
+    # Host-Shell-Zugriff. Ein containerisiertes Backend, das beliebige
+    # Befehle auf dem Host ausfuehren koennte, waere praktisch ein
+    # Remote-Root-Zugriff auf den Server -- das bauen wir nicht. Diese
+    # eng begrenzte, service-eigene Admin-Aktion ist der sichere Weg.
+    adguard_home_url: str | None = None
+    adguard_home_username: str | None = None
+    adguard_home_password: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

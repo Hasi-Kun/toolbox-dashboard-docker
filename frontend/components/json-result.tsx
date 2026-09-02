@@ -82,7 +82,7 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
     if (value.length > 60 || value.includes("\n")) {
       return (
         <span className="flex items-start gap-1.5">
-          <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs text-ink">{value}</pre>
+          <pre data-allow-context-menu className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs text-ink">{value}</pre>
           <CopyButton text={value} className="mt-0.5" />
         </span>
       );
@@ -182,7 +182,7 @@ function ValueRenderer({ value, depth }: { value: unknown; depth: number }) {
                 <div className="mb-1 flex justify-end">
                   <CopyButton text={transcriptText} className="opacity-100" />
                 </div>
-                <pre className="max-h-96 overflow-y-auto rounded-lg border border-base-border bg-base p-3 font-mono text-xs leading-relaxed text-ink">
+                <pre data-allow-context-menu className="max-h-96 overflow-y-auto rounded-lg border border-base-border bg-base p-3 font-mono text-xs leading-relaxed text-ink">
                   {(val as string[]).map((line, i) => (
                     <div
                       key={i}

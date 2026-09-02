@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE_NAME = "toolbox_session";
-const PUBLIC_PATHS = ["/login", "/register"];
+// "/s/" (OneTimePassword-Ansichtsseite) ist bewusst oeffentlich -- der
+// Empfaenger eines geteilten Geheimnis-Links hat typischerweise KEIN
+// eigenes Toolbox-Konto. Die Seite selbst ruft das Geheimnis NICHT
+// automatisch beim Laden ab (nur nach explizitem Klick) -- sonst wuerden
+// automatische Link-Vorschauen (Slack/Teams/etc. Crawler-Bots, die die
+// URL beim Teilen selbst aufrufen) das Einmal-Geheimnis vorzeitig
+// "verbrennen", bevor der eigentliche Empfaenger es je sieht.
+const PUBLIC_PATHS = ["/login", "/register", "/s/"];
 
 /**
  * Sperrt das gesamte Dashboard ohne gueltiges Session-Cookie.

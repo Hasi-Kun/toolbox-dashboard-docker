@@ -3,16 +3,29 @@
 import { useEffect, useState } from "react";
 import { Terminal } from "lucide-react";
 import { CliWindow, type CliWindowState } from "@/components/webcli/cli-window";
+import { useLanguage } from "@/components/language-provider";
 
 type Tool = { slug: string; name: string; description: string; category: string };
+
+// WebCLI-Fenster sind rein clientseitiger React-State -- es gibt keine
+// Backend-Session dafuer (keine WebSocket, jeder Befehl ruft nur die
+// normalen zustandslosen Tool-Endpunkte auf, siehe cli-commands.ts).
+// Die Begrenzung ist deshalb bewusst hier auf UI-Ebene angesetzt: sie
+// verhindert, dass ein Nutzer sich selbst mit zu vielen ueberlappenden
+// Fenstern zumuellt, nicht eine Server-Ressourcen-Erschoepfung (die
+// eigentlichen Scans laufen ohnehin ueber die separate, bereits
+// bestehende Scan-Queue mit eigenen Limits).
+const MAX_CONCURRENT_WINDOWS = 5;
 
 let windowCounter = 0;
 
 export function WebCliManager() {
+  const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
   const [tools, setTools] = useState<Tool[]>([]);
   const [windows, setWindows] = useState<CliWindowState[]>([]);
   const [zOrder, setZOrder] = useState<string[]>([]);
+  const [limitNotice, setLimitNotice] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -26,6 +39,11 @@ export function WebCliManager() {
   }, []);
 
   function openNewWindow() {
+    if (windows.length >= MAX_CONCURRENT_WINDOWS) {
+      setLimitNotice(true);
+      setTimeout(() => setLimitNotice(false), 3000);
+      return;
+    }
     windowCounter += 1;
     const id = `cli-${windowCounter}`;
     const offset = (windows.length % 5) * 24;
@@ -65,11 +83,26 @@ export function WebCliManager() {
       <button
         type="button"
         onClick={openNewWindow}
-        title="Neues WebCLI-Fenster oeffnen"
-        className="flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-xs font-medium uppercase text-ink-muted hover:text-ink"
+        title={
+          windows.length >= MAX_CONCURRENT_WINDOWS
+            ? t("webcli.limit_reached").replace("{max}", String(MAX_CONCURRENT_WINDOWS))
+            : t("webcli.open_new_window")
+        }
+        className="relative flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-2 text-xs font-medium uppercase text-ink-muted hover:text-ink"
       >
         <Terminal className="h-4 w-4" />
+        {windows.length > 0 && (
+          <span className="rounded-full bg-signal/15 px-1.5 py-0.5 font-mono text-[10px] text-signal">
+            {windows.length}/{MAX_CONCURRENT_WINDOWS}
+          </span>
+        )}
       </button>
+
+      {limitNotice && (
+        <div className="fixed left-1/2 top-4 z-[300] -translate-x-1/2 rounded-lg border border-warn/40 bg-base-elevated px-4 py-2 text-sm text-warn shadow-card">
+          {t("webcli.limit_reached").replace("{max}", String(MAX_CONCURRENT_WINDOWS))}
+        </div>
+      )}
 
       {windows.map((win) => (
         <CliWindow

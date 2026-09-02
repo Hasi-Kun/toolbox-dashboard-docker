@@ -14,6 +14,9 @@ import {
   ShieldAlert,
   Globe,
   Radar,
+  TerminalSquare,
+  KeyRound,
+  Mail,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { categoryIconBySlug, DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
@@ -99,6 +102,13 @@ export function Sidebar() {
           active={pathname.startsWith("/feature-requests")}
           collapsed={collapsed}
         />
+        <SidebarLink
+          href="/cheatsheets"
+          icon={ScrollText}
+          label={t("sidebar.cheatsheets")}
+          active={pathname === "/cheatsheets"}
+          collapsed={collapsed}
+        />
 
         {!collapsed && (
           <p className="mt-6 px-3 text-xs font-medium uppercase tracking-wider text-ink-muted">
@@ -131,6 +141,21 @@ export function Sidebar() {
           </p>
         )}
         <ul className={cn("space-y-0.5", collapsed ? "mt-4" : "mt-2")}>
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/webssh" icon={TerminalSquare} label={t("sidebar.webssh")} active={pathname === "/settings/webssh"} collapsed={collapsed} />
+            </li>
+          )}
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/one-time-secrets" icon={KeyRound} label={t("sidebar.one_time_secrets")} active={pathname === "/settings/one-time-secrets"} collapsed={collapsed} />
+            </li>
+          )}
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/email-aliases" icon={Mail} label={t("sidebar.email_aliases")} active={pathname === "/settings/email-aliases"} collapsed={collapsed} />
+            </li>
+          )}
           {isAdmin && (
             <li>
               <SidebarLink href="/settings/users" icon={Users} label={t("sidebar.users")} active={pathname === "/settings/users"} collapsed={collapsed} />

@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 
 import httpx
 import psutil
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
+from app.core.audit import get_client_ip, log_audit_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.sessions import get_online_user_ids
@@ -18,6 +19,20 @@ from app.modules import get_registry
 logger = logging.getLogger("toolbox.system")
 settings = get_settings()
 router = APIRouter(prefix="/system", tags=["system"])
+
+# Feste Allowlist statt Praefix-Matching -- explizit und unmissverstaendlich,
+# welche Container ueberhaupt zur eigenen Toolbox-Stack gehoeren (siehe
+# docker-compose.yml container_name:). Wird sowohl fuers Filtern der
+# Uebersicht als auch als harte Grenze fuer den Neustart-Endpunkt genutzt --
+# der Docker-Socket-Proxy selbst kennt keine Container-Namen, nur IDs/Namen
+# als Pfad-Parameter, daher MUSS diese Pruefung hier im Backend passieren.
+TOOLBOX_CONTAINER_NAMES = {
+    "toolbox-frontend",
+    "toolbox-backend",
+    "toolbox-scanner",
+    "toolbox-redis",
+    "toolbox-docker-proxy",
+}
 
 
 @router.get("/info")
@@ -51,6 +66,12 @@ async def docker_status(_admin: User = Depends(require_admin)) -> dict:
     """Container-Liste ueber den read-only Docker-Socket-Proxy (siehe
     docker-compose.yml + docs/ARCHITECTURE.md) -- das Backend selbst
     beruehrt niemals /var/run/docker.sock direkt.
+
+    Bewusst NUR auf die eigene Toolbox-Stack gefiltert (siehe
+    TOOLBOX_CONTAINER_NAMES) -- der Host laeuft typischerweise noch
+    weitere, voellig unabhaengige Container (z.B. andere selbst
+    gehostete Dienste), die im Toolbox-Dashboard nichts verloren haben
+    und deren Namen/Status auch nicht offengelegt werden sollen.
     """
     url = f"{settings.docker_proxy_url}/containers/json?all=1"
     try:
@@ -61,20 +82,64 @@ async def docker_status(_admin: User = Depends(require_admin)) -> dict:
         logger.warning("Docker-Socket-Proxy nicht erreichbar: %s", exc)
         raise HTTPException(status_code=502, detail="Docker-Status nicht erreichbar") from exc
 
-    containers = response.json()
+    all_containers = response.json()
+    toolbox_containers = [
+        c for c in all_containers if c.get("Names", ["?"])[0].lstrip("/") in TOOLBOX_CONTAINER_NAMES
+    ]
+
+    result = [
+        {
+            "name": c.get("Names", ["?"])[0].lstrip("/"),
+            "id": c.get("Id", "")[:12],
+            "image": c.get("Image"),
+            "state": c.get("State"),
+            "status": c.get("Status"),
+        }
+        for c in toolbox_containers
+    ]
+    # Stabile, vorhersehbare Reihenfolge im Dashboard statt der
+    # Docker-API-eigenen (nicht garantiert konsistenten) Reihenfolge.
+    order = {name: i for i, name in enumerate(TOOLBOX_CONTAINER_NAMES)}
+    result.sort(key=lambda c: order.get(c["name"], 99))
+
     return {
-        "containers": [
-            {
-                "name": c.get("Names", ["?"])[0].lstrip("/"),
-                "image": c.get("Image"),
-                "state": c.get("State"),
-                "status": c.get("Status"),
-            }
-            for c in containers
-        ],
-        "total": len(containers),
-        "running": sum(1 for c in containers if c.get("State") == "running"),
+        "containers": result,
+        "total": len(result),
+        "running": sum(1 for c in result if c["state"] == "running"),
     }
+
+
+@router.post("/docker/{container_name}/restart")
+async def restart_docker_container(
+    container_name: str, request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+) -> dict:
+    """Startet einen einzelnen Container der eigenen Toolbox-Stack neu.
+
+    Harte Allowlist-Pruefung HIER im Backend: der Docker-Socket-Proxy
+    selbst kennt keine Container-Namen-Einschraenkung (ALLOW_RESTARTS=1
+    dort wuerde technisch JEDEN Container auf dem Host erlauben) -- diese
+    Pruefung ist die tatsaechliche Sicherheitsgrenze, nicht die
+    Proxy-Konfiguration allein. Jeder Neustart wird zusaetzlich im
+    Audit-Log festgehalten (wer, welcher Container, wann).
+    """
+    if container_name not in TOOLBOX_CONTAINER_NAMES:
+        raise HTTPException(status_code=403, detail="Nur Container der eigenen Toolbox-Stack koennen neugestartet werden.")
+
+    url = f"{settings.docker_proxy_url}/containers/{container_name}/restart?t=10"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url)
+    except httpx.HTTPError as exc:
+        logger.warning("Docker-Container-Neustart fehlgeschlagen (%s): %s", container_name, exc)
+        log_audit_event(db, "docker_container_restart", success=False, username=admin.username, ip_address=get_client_ip(request), detail=f"{container_name}: {exc}")
+        raise HTTPException(status_code=502, detail="Neustart fehlgeschlagen -- Docker-Socket-Proxy nicht erreichbar") from exc
+
+    if response.status_code not in (204, 304):
+        log_audit_event(db, "docker_container_restart", success=False, username=admin.username, ip_address=get_client_ip(request), detail=f"{container_name}: HTTP {response.status_code}")
+        raise HTTPException(status_code=502, detail=f"Neustart fehlgeschlagen (HTTP {response.status_code})")
+
+    log_audit_event(db, "docker_container_restart", success=True, username=admin.username, ip_address=get_client_ip(request), detail=container_name)
+    return {"success": True, "container": container_name}
 
 
 @router.get("/online-users")
@@ -311,3 +376,40 @@ async def get_security_hygiene(db: Session = Depends(get_db), _admin: User = Dep
             stale_users.append(StaleTotpUserOut(username=user.username, days_since_rotation=days))
 
     return SecurityHygieneOut(stale_totp_threshold_days=STALE_TOTP_THRESHOLD_DAYS, users_with_stale_totp=stale_users)
+
+
+@router.post("/dns-cache/flush")
+async def flush_dns_cache(request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> dict:
+    """Leert den DNS-Cache von AdGuard Home ueber dessen EIGENE REST-API
+    (POST /control/cache_clear, HTTP-Basic-Auth) -- bewusst NICHT ueber
+    Host-Shell-Zugriff (siehe Kommentar bei den Settings-Feldern in
+    app/core/config.py: ein containerisiertes Backend mit beliebiger
+    Host-Befehlsausfuehrung waere praktisch ein Remote-Root-Zugriff auf
+    den Server, das bauen wir nicht). Erfordert ADGUARD_HOME_URL/
+    ADGUARD_HOME_USERNAME/ADGUARD_HOME_PASSWORD in der Server-Konfiguration.
+    """
+    if not settings.adguard_home_url or not settings.adguard_home_username:
+        raise HTTPException(
+            status_code=400,
+            detail="AdGuard Home ist nicht konfiguriert (ADGUARD_HOME_URL/ADGUARD_HOME_USERNAME/ADGUARD_HOME_PASSWORD in der .env setzen).",
+        )
+
+    url = f"{settings.adguard_home_url.rstrip('/')}/control/cache_clear"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                url,
+                auth=(settings.adguard_home_username, settings.adguard_home_password or ""),
+                headers={"Content-Type": "application/json"},
+                content="{}",
+            )
+    except httpx.HTTPError as exc:
+        log_audit_event(db, "dns_cache_flush", success=False, username=admin.username, ip_address=get_client_ip(request), detail=str(exc))
+        raise HTTPException(status_code=502, detail=f"AdGuard Home nicht erreichbar: {exc}") from exc
+
+    if response.status_code >= 400:
+        log_audit_event(db, "dns_cache_flush", success=False, username=admin.username, ip_address=get_client_ip(request), detail=f"HTTP {response.status_code}")
+        raise HTTPException(status_code=502, detail=f"AdGuard Home meldete einen Fehler (HTTP {response.status_code}).")
+
+    log_audit_event(db, "dns_cache_flush", success=True, username=admin.username, ip_address=get_client_ip(request), detail=None)
+    return {"success": True}

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 
@@ -5,9 +6,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
+from app.api.v1.endpoints.one_time_secrets import cleanup_expired_secrets
+from app.api.v1.endpoints.ssh_webshell import router as ssh_webshell_router
 from app.core.audit import get_client_ip
 from app.core.config import get_settings
-from app.core.db import Base, engine  # noqa: F401 -- Base bleibt fuer evtl. Tooling importierbar
+from app.core.db import Base, SessionLocal, engine  # noqa: F401 -- Base bleibt fuer evtl. Tooling importierbar
 from app.core.logging_config import configure_logging
 
 # Modelle importieren, damit SQLAlchemy sie in Base.metadata kennt,
@@ -58,6 +61,10 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(api_router, prefix="/api/v1")
+# BEWUSST ohne /api/v1-Praefix und separat registriert: diese Route wird
+# von Caddy direkt an dieses Backend weitergeleitet (WebSocket-Upgrade
+# laeuft NICHT durch die Next.js-BFF-Proxy-Schicht), siehe docs/CADDY.md.
+app.include_router(ssh_webshell_router)
 
 
 @app.on_event("startup")
@@ -66,3 +73,26 @@ async def on_startup() -> None:
     # app/scripts/run_migrations.py, aufgerufen im Dockerfile-CMD) --
     # hier nur noch Logging, kein create_all/ALTER TABLE mehr.
     logger.info("Toolbox API gestartet (env=%s)", settings.environment)
+    asyncio.create_task(_periodic_secret_cleanup())
+
+
+async def _periodic_secret_cleanup() -> None:
+    """Loescht abgelaufene, NIE abgerufene OneTimePassword-Geheimnisse
+    periodisch -- ohne das wuerden sie unbegrenzt in der DB liegen
+    bleiben, wenn niemand je versucht, sie abzurufen (der Lazy-Cleanup
+    beim tatsaechlichen Abrufversuch deckt nur DIESEN einen Fall ab).
+    Laeuft als einfacher Hintergrund-Task statt einer vollen Scheduler-
+    Abhaengigkeit (celery/APScheduler) -- fuer diese eine, unkritische
+    Aufraeum-Aufgabe ausreichend.
+    """
+    while True:
+        await asyncio.sleep(3600)  # stuendlich
+        db = SessionLocal()
+        try:
+            deleted = await cleanup_expired_secrets(db)
+            if deleted:
+                logger.info("Periodischer Cleanup: %d abgelaufene OneTimePassword-Geheimnisse geloescht", deleted)
+        except Exception:  # noqa: BLE001
+            logger.exception("Periodischer OneTimePassword-Cleanup fehlgeschlagen")
+        finally:
+            db.close()

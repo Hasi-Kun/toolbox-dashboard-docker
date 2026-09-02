@@ -188,7 +188,7 @@ export function CliWindow({
         </div>
       </div>
 
-      <div ref={bodyRef} className="flex-1 overflow-y-auto p-3 font-mono text-xs text-ink">
+      <div ref={bodyRef} data-allow-context-menu className="flex-1 overflow-y-auto p-3 font-mono text-xs text-ink">
         {win.history.length === 0 && (
           <p className="text-ink-muted">Toolbox WebCLI. 'help' fuer Befehle, 'list' fuer alle Tools.</p>
         )}

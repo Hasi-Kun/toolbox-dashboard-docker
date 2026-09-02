@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Activity, Boxes, Cpu, MemoryStick, Users } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
 import { useCountUp } from "@/lib/use-count-up";
+import { DockerStatusModal } from "@/components/widgets/docker-status-modal";
 
 type Status = "online" | "degraded" | "offline";
 
@@ -42,6 +43,7 @@ export function SystemStatusBar() {
   const [docker, setDocker] = useState<DockerStatus | null>(null);
   const [online, setOnline] = useState<OnlineUsers | null>(null);
   const [restricted, setRestricted] = useState(false);
+  const [dockerModalOpen, setDockerModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +128,7 @@ export function SystemStatusBar() {
             value={docker ? `${Math.round(dockerRunning)}/${docker.total}` : "—"}
             progress={docker && docker.total > 0 ? (docker.running / docker.total) * 100 : 0}
             delayMs={180}
+            onClick={() => setDockerModalOpen(true)}
           />
         </>
       )}
@@ -145,6 +148,8 @@ export function SystemStatusBar() {
           </p>
         )}
       </div>
+
+      {dockerModalOpen && <DockerStatusModal onClose={() => setDockerModalOpen(false)} />}
     </div>
   );
 }
@@ -156,6 +161,7 @@ function StatCard({
   hint,
   progress,
   delayMs,
+  onClick,
 }: {
   icon: typeof Activity;
   label: string;
@@ -163,12 +169,16 @@ function StatCard({
   hint?: string;
   progress: number;
   delayMs: number;
+  onClick?: () => void;
 }) {
   const barColor = progress >= 85 ? "bg-critical" : progress >= 65 ? "bg-warn" : "bg-signal";
+  const Wrapper = onClick ? "button" : "div";
 
   return (
-    <div
-      className="card-interactive rounded-xl border border-base-border bg-base-elevated p-4 shadow-card animate-stagger-in"
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`card-interactive rounded-xl border border-base-border bg-base-elevated p-4 text-left shadow-card animate-stagger-in ${onClick ? "cursor-pointer" : ""}`}
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div className="flex items-center gap-2 text-ink-muted">
@@ -184,6 +194,6 @@ function StatCard({
           style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
         />
       </div>
-    </div>
+    </Wrapper>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/components/language-provider";
+import { ContextMenuGuard } from "@/components/context-menu-guard";
 
 const display = Space_Grotesk({
   subsets: ["latin"],
@@ -34,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="de" className={`dark ${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
+        <ContextMenuGuard />
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>

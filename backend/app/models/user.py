@@ -301,3 +301,123 @@ class AuditLogEntry(Base):
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+
+
+class SavedSshConnection(Base):
+    """Gespeicherte SSH-Verbindung fuer die WebSSH-Webshell -- bewusst
+    strikt pro Nutzer isoliert (user_id-Filter in JEDER Query, nie ueber
+    die ID allein zugreifbar): "diese sind nur als der jeweilige Nutzer
+    aufrufbar", wie in der Feature-Anfrage gefordert. Das gespeicherte
+    Geheimnis (Passwort ODER privater Schluessel) liegt NIE im Klartext
+    in der DB -- verschluesselt ueber app/core/ssh_vault.py (Fernet,
+    symmetrischer Schluessel aus SSH_VAULT_KEY bzw. abgeleitet aus
+    session_secret als Fallback).
+    """
+
+    __tablename__ = "saved_ssh_connections"
+    __table_args__ = (UniqueConstraint("user_id", "label", name="uq_ssh_conn_user_label"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    host: Mapped[str] = mapped_column(String(255), nullable=False)
+    port: Mapped[int] = mapped_column(Integer, default=22, server_default=text("22"), nullable=False)
+    username: Mapped[str] = mapped_column(String(255), nullable=False)
+    # "password" | "key" | "none" (none = beim Verbinden jedes Mal neu abfragen,
+    # nur Host/Port/User werden gespeichert -- kein Geheimnis in der DB).
+    auth_method: Mapped[str] = mapped_column(String(16), default="none", server_default=text("'none'"), nullable=False)
+    encrypted_secret: Mapped[str | None] = mapped_column(String(8192), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    user: Mapped["User"] = relationship()
+
+
+class OneTimeSecret(Base):
+    """Abrufbarer, verschluesselter Geheimnis-Link ("Burn after reading"
+    -- Passwoerter/Notizen sicher teilen). Der Token in der URL ist die
+    einzige "Berechtigung", ihn zu lesen -- bewusst KEIN Login fuers
+    Ansehen noetig, da der Empfaenger typischerweise KEIN eigenes
+    Toolbox-Konto hat (Kollege, Kunde, ...). Erstellen erfordert aber
+    Login, um Missbrauch der eigenen Infrastruktur als anonymer
+    Geheimnis-Speicher zu verhindern.
+
+    Der eigentliche Inhalt wird NIE im Klartext gespeichert (Fernet,
+    siehe app/core/ssh_vault.py -- derselbe Verschluesselungs-Mechanismus
+    wiederverwendet). Standardmaessig genau EIN Abruf erlaubt
+    (max_views=1) -- der Ersteller kann das aber nachtraeglich erhoehen
+    (z.B. wenn mehrere Personen denselben Link abrufen sollen) sowie die
+    Gueltigkeit verlaengern. Sobald view_count >= max_views erreicht
+    ist, wird der Eintrag geloescht -- ein weiterer Abruf findet dann
+    buchstaeblich nichts mehr vor.
+    """
+
+    __tablename__ = "one_time_secrets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Kryptographisch zufaelliger Token (secrets.token_urlsafe), NICHT
+    # die numerische ID -- wird in der URL verwendet, muss also
+    # unerratbar sein (die ID allein waere sequenziell/erratbar).
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    creator_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    encrypted_content: Mapped[str] = mapped_column(String(16384), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    max_views: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"), nullable=False)
+    view_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
+
+    creator: Mapped["User"] = relationship()
+
+
+class EmailAlias(Base):
+    """Email-Alias fuer anonyme Anmeldungen/Spam-Schutz (aehnlich
+    AnonAddy/SimpleLogin): eine eindeutige Adresse alias@domain, die auf
+    eine echte Zieladresse weiterleitet. Strikt pro Nutzer isoliert.
+
+    WICHTIG (Infrastruktur-Hinweis): dieses Modell + die zugehoerigen
+    Endpunkte sind die reine VERWALTUNGSEBENE (welche Aliase existieren,
+    wohin sie weiterleiten sollen, an/aus). Das tatsaechliche EMPFANGEN
+    und WEITERLEITEN von E-Mails braucht einen SEPARATEN, eigenstaendigen
+    SMTP-Empfangsdienst (z.B. Postfix oder ein aiosmtpd-basierter
+    Service) PLUS eine echte Domain mit MX-Record, der auf diesen
+    Server zeigt -- das ist NICHT Teil dieses Modells und muss als
+    eigenes Infrastruktur-Vorhaben aufgesetzt werden (aehnlich der
+    CheckTLS-TestReceiver-Anfrage: ohne echten Mail-Empfang bleibt das
+    hier nur die Verwaltungsoberflaeche, ohne dass tatsaechlich Mail
+    fliesst).
+    """
+
+    __tablename__ = "email_aliases"
+    __table_args__ = (UniqueConstraint("local_part", "domain", name="uq_alias_local_domain"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    local_part: Mapped[str] = mapped_column(String(64), nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    target_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_forwarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    forward_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), nullable=False)
+
+    user: Mapped["User"] = relationship()
+
+
+class AdguardSettings(Base):
+    """Instanzweite Verbindungsdaten fuer AdGuard Home (Singleton, id=1)
+    -- fuer den "DNS-Cache leeren"-Button. AdGuard Home cached DNS-
+    Antworten lokal; nach Aenderungen an eigenen DNS-Records kann ein
+    veralteter Cache-Eintrag die Aktualisierung verzoegern (bekanntes,
+    von AdGuard Home selbst dokumentiertes Verhalten). Das Passwort wird
+    NIE im Klartext gespeichert -- Fernet-verschluesselt, siehe
+    app/core/ssh_vault.py.
+    """
+
+    __tablename__ = "adguard_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    configured: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"), nullable=False)
+    base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    encrypted_password: Mapped[str | None] = mapped_column(String(2048), nullable=True)

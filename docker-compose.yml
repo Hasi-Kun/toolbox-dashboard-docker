@@ -32,7 +32,24 @@ services:
       - toolbox-db-data:/data
     depends_on:
       - toolbox-redis
+    # WICHTIG (Architektur-Aenderung fuer WebSSH): der Backend-Container
+    # war bisher AUSSCHLIESSLICH im internen toolbox-internal-Netz --
+    # komplett unerreichbar von aussen, selbst von Caddy. Fuer die
+    # WebSSH-Webshell (WebSocket, siehe app/api/v1/endpoints/ssh_webshell.py)
+    # muss Caddy den Backend-Container DIREKT erreichen koennen, da
+    # WebSocket-Upgrades nicht durch die Next.js-BFF-Proxy-Schicht laufen
+    # koennen. Deshalb jetzt ZUSAETZLICH auf webnet (das Netz, in dem
+    # Caddy laeuft) -- bewusste Abwaegung: das macht den Backend-
+    # Container fuer ALLE anderen Container in webnet netzwerktechnisch
+    # erreichbar (nicht nur Caddy), falls dort noch weitere, unabhaengige
+    # Dienste laufen. Jeder Endpunkt prueft aber weiterhin seine eigene
+    # Authentifizierung unabhaengig vom Netzwerkpfad -- die Erreichbarkeit
+    # allein reicht nicht fuer Zugriff. Falls das zu weitreichend ist,
+    # als Alternative ein eigenes, nur Caddy+Backend umfassendes Netz
+    # einrichten (braucht eine Anpassung von Caddys eigener Compose-Datei,
+    # die ausserhalb dieses Repos liegt).
     networks:
+      - webnet
       - toolbox-internal
 
   # Read-only Docker-API-Proxy fuer die Dashboard-Container-Uebersicht.
@@ -52,8 +69,17 @@ services:
       - CONTAINERS=1
       - INFO=1
       - POST=0
+      # ALLOW_RESTARTS ist bewusst EIN eigenstaendiger Schalter, unabhaengig
+      # vom POST-Hauptschalter (containers/{id}/stop|restart|kill) -- damit
+      # kann das Dashboard einzelne Toolbox-Container neu starten, OHNE
+      # POST=1 zu setzen (das wuerde zusaetzlich Create/Delete/Exec/etc.
+      # oeffnen). Das Backend selbst validiert zusaetzlich, dass NUR
+      # Container aus der eigenen Toolbox-Stack neugestartet werden
+      # koennen (siehe app/api/v1/endpoints/system.py) -- diese Env-Var
+      # allein wuerde technisch jeden Container auf dem Host erlauben.
+      - ALLOW_RESTARTS=1
       # Alles andere bleibt beim sicheren Default (0): kein EXEC, kein BUILD,
-      # keine IMAGES/VOLUMES/NETWORKS/SECRETS/SWARM-Zugriff.
+      # keine IMAGES/VOLUMES/NETWORKS/SECRETS/SWARM-Zugriff, kein CREATE/DELETE.
     networks:
       - toolbox-internal
     # Falls der Start auf einem SELinux-Host fehlschlaegt: 'privileged: true'
