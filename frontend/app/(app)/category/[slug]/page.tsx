@@ -125,27 +125,12 @@ export default function CategoryPage() {
               </Link>
             )}
 
-            {params.slug === "security" && (
-              <Link
-                href="/tools/cheatsheets"
-                className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-display text-base text-ink">Cheatsheets</p>
-                  <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">Referenz</span>
-                </div>
-                <p className="mt-1 text-sm text-ink-muted">
-                  Durchsuchbare Befehlsreferenz -- dig, nmap, curl, tcpdump, openssl, hashcat und mehr.
-                </p>
-                <p className="mt-3 font-mono text-xs text-ink-muted">cheatsheets</p>
-              </Link>
-            )}
-
             {tools?.length === 0 && (
               <p className="text-sm text-ink-muted">
                 Noch keine Tools in dieser Kategorie implementiert.
               </p>
             )}
           </div>
-        </main>  );
+        </main>
+  );
 }
