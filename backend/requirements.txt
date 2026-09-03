@@ -19,3 +19,4 @@ alembic==1.13.3
 email-validator==2.2.0
 python-multipart==0.0.9
 asyncssh==2.24.0
+dkimpy==1.1.8

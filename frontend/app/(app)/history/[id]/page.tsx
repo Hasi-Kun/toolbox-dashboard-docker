@@ -95,5 +95,6 @@ export default function HistoryDetailPage() {
               </Link>
             </>
           )}
-        </main>  );
+        </main>
+  );
 }

@@ -340,5 +340,6 @@ export default function FeatureRequestsPage() {
               </button>
             </div>
           )}
-        </main>  );
+        </main>
+  );
 }

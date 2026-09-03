@@ -75,43 +75,51 @@ class SubdomainTakeoverCheckerModule(ToolModule):
         detail: str
 
     async def run(self, data: Input) -> Output:
-        cname_result = await query(data.subdomain, "CNAME", timeout=6)
-        if not cname_result["success"] or not cname_result["records"]:
-            return self.Output(
-                subdomain=data.subdomain, cname_target=None,
-                detail="Kein CNAME-Record gefunden -- keine Subdomain-Takeover-Gefahr ueber diesen Vektor.",
-            )
+        return await check_subdomain_takeover(data.subdomain, self.timeout_seconds)
 
-        cname_target = cname_result["records"][0].rstrip(".")
-        matched = next(((suffix, service, fingerprint) for suffix, service, fingerprint in _TAKEOVER_SIGNATURES
-                         if cname_target.endswith(suffix)), None)
 
-        if matched is None:
-            return self.Output(
-                subdomain=data.subdomain, cname_target=cname_target,
-                detail=f"CNAME zeigt auf '{cname_target}' -- kein bekannter Takeover-anfaelliger Dienst in unserer Signaturliste.",
-            )
-
-        suffix, service, fingerprint = matched
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds - 3, follow_redirects=True) as client:
-                response = await client.get(f"https://{data.subdomain}", headers={"User-Agent": "Toolbox-Takeover-Check/1.0"})
-        except httpx.HTTPError as exc:
-            return self.Output(
-                subdomain=data.subdomain, cname_target=cname_target, matched_service=service,
-                http_check_error=str(exc),
-                detail=f"CNAME zeigt auf {service} ({cname_target}), aber der HTTP-Check schlug fehl -- manuell pruefen.",
-            )
-
-        is_vulnerable = fingerprint.lower() in response.text.lower()
-        return self.Output(
-            subdomain=data.subdomain, cname_target=cname_target, matched_service=service,
-            potentially_vulnerable=is_vulnerable,
-            detail=(
-                f"CNAME zeigt auf {service} ({cname_target}) UND der erwartete 'nicht beansprucht'-Text "
-                f"wurde gefunden -- moeglicherweise uebernehmbar, manuell verifizieren!"
-                if is_vulnerable else
-                f"CNAME zeigt auf {service} ({cname_target}), aber der Namensraum scheint beansprucht "
-                f"(kein 'nicht gefunden'-Fingerabdruck in der Antwort)."
-            ),
+async def check_subdomain_takeover(subdomain: str, timeout_seconds: int = 15) -> "SubdomainTakeoverCheckerModule.Output":
+    """Eigenstaendige, wiederverwendbare Kernlogik -- ausgelagert aus
+    run(), damit der Batch-Checker (subdomain_takeover_batch_checker.py)
+    dieselbe Pruefung fuer mehrere Subdomains parallel nutzen kann, ohne
+    die Logik zu duplizieren."""
+    cname_result = await query(subdomain, "CNAME", timeout=6)
+    if not cname_result["success"] or not cname_result["records"]:
+        return SubdomainTakeoverCheckerModule.Output(
+            subdomain=subdomain, cname_target=None,
+            detail="Kein CNAME-Record gefunden -- keine Subdomain-Takeover-Gefahr ueber diesen Vektor.",
         )
+
+    cname_target = cname_result["records"][0].rstrip(".")
+    matched = next(((suffix, service, fingerprint) for suffix, service, fingerprint in _TAKEOVER_SIGNATURES
+                     if cname_target.endswith(suffix)), None)
+
+    if matched is None:
+        return SubdomainTakeoverCheckerModule.Output(
+            subdomain=subdomain, cname_target=cname_target,
+            detail=f"CNAME zeigt auf '{cname_target}' -- kein bekannter Takeover-anfaelliger Dienst in unserer Signaturliste.",
+        )
+
+    suffix, service, fingerprint = matched
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds - 3, follow_redirects=True) as client:
+            response = await client.get(f"https://{subdomain}", headers={"User-Agent": "Toolbox-Takeover-Check/1.0"})
+    except httpx.HTTPError as exc:
+        return SubdomainTakeoverCheckerModule.Output(
+            subdomain=subdomain, cname_target=cname_target, matched_service=service,
+            http_check_error=str(exc),
+            detail=f"CNAME zeigt auf {service} ({cname_target}), aber der HTTP-Check schlug fehl -- manuell pruefen.",
+        )
+
+    is_vulnerable = fingerprint.lower() in response.text.lower()
+    return SubdomainTakeoverCheckerModule.Output(
+        subdomain=subdomain, cname_target=cname_target, matched_service=service,
+        potentially_vulnerable=is_vulnerable,
+        detail=(
+            f"CNAME zeigt auf {service} ({cname_target}) UND der erwartete 'nicht beansprucht'-Text "
+            f"wurde gefunden -- moeglicherweise uebernehmbar, manuell verifizieren!"
+            if is_vulnerable else
+            f"CNAME zeigt auf {service} ({cname_target}), aber der Namensraum scheint beansprucht "
+            f"(kein 'nicht gefunden'-Fingerabdruck in der Antwort)."
+        ),
+    )

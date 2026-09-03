@@ -33,20 +33,12 @@ export function Topbar() {
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Frueher wurde hier bei 401 still zu /login umgeleitet -- das
+    // uebernimmt jetzt zentral <SessionGuard /> im (app)-Layout, MIT
+    // erklaerendem Hinweis-Popup statt einer stillen, ueberraschenden
+    // Weiterleitung. Hier nur noch das normale Laden der Nutzerdaten.
     fetch("/api/auth/me")
-      .then((res) => {
-        // 401 bedeutet: die Session-Cookie ist zwar noch vorhanden (sonst
-        // haette die Middleware schon vorher auf /login umgeleitet), aber
-        // ungueltig geworden -- z.B. weil der Redis-Session-Speicher beim
-        // letzten Neustart geleert wurde. Ohne diese Weiterleitung landet
-        // man sonst auf einer Seite, die still vor sich hin 401en wirft,
-        // ohne erkennbaren Ausweg.
-        if (res.status === 401) {
-          router.replace("/login");
-          return null;
-        }
-        return res.ok ? res.json() : null;
-      })
+      .then((res) => (res.ok ? res.json() : null))
       .then(setMe)
       .catch(() => setMe(null));
     fetch("/api/tools")

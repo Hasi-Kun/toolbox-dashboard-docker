@@ -176,5 +176,6 @@ export default function AuditLogPage() {
               )}
             </>
           )}
-        </main>  );
+        </main>
+  );
 }

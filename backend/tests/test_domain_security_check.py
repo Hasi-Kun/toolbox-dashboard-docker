@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
-def _make_spf_output(found=True, qualifier="-"):
+def _make_spf_output(found=True, qualifier="-all"):
     from app.modules.mail.spf import SpfCheckModule
     return SpfCheckModule.Output(
         domain="example.com", found=found, raw_record="v=spf1 -all" if found else None,
@@ -58,7 +58,7 @@ async def test_strong_domain_gets_high_score():
     module = DomainSecurityCheckModule()
     dnssec_ok = CategoryResult(category="DNSSEC", score=100, status="bestanden", details=[])
 
-    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "-"))), \
+    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "-all"))), \
          patch("app.modules.security.domain_security_check.DkimCheckModule.run", new=AsyncMock(return_value=_make_dkim_output(True))), \
          patch("app.modules.security.domain_security_check.DmarcCheckModule.run", new=AsyncMock(return_value=_make_dmarc_output(True, "reject", rua=True, ruf=False))), \
          patch("app.modules.security.domain_security_check.DaneCheckModule.run", new=AsyncMock(return_value=_make_dane_output(True))), \
@@ -92,11 +92,11 @@ async def test_spf_softfail_scores_lower_than_hardfail():
     from app.modules.security.domain_security_check import DomainSecurityCheckModule
 
     module = DomainSecurityCheckModule()
-    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "-"))):
+    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "-all"))):
         hard_result = await module._score_spf("example.com")
-    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "~"))):
+    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "~all"))):
         soft_result = await module._score_spf("example.com")
-    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "?"))):
+    with patch("app.modules.security.domain_security_check.SpfCheckModule.run", new=AsyncMock(return_value=_make_spf_output(True, "?all"))):
         neutral_result = await module._score_spf("example.com")
 
     assert hard_result.score > soft_result.score > neutral_result.score
@@ -133,3 +133,38 @@ def test_domain_security_check_registered():
     from app.modules import get_registry
 
     assert "domain-security-check" in get_registry()
+
+
+@pytest.mark.asyncio
+async def test_spf_message_never_double_appends_all():
+    """Regressionstest fuer den gemeldeten Bug: die Fehlermeldung zeigte
+    faelschlich 'Qualifier -allall' statt '-all', weil catch_all_qualifier
+    (von spf.py) bereits den VOLLSTAENDIGEN String liefert, hier aber
+    zusaetzlich nochmal 'all' angehaengt wurde."""
+    from app.modules.security.domain_security_check import DomainSecurityCheckModule
+
+    module = DomainSecurityCheckModule()
+    for qualifier in ("-all", "~all", "?all", "+all"):
+        with patch(
+            "app.modules.security.domain_security_check.SpfCheckModule.run",
+            new=AsyncMock(return_value=_make_spf_output(True, qualifier)),
+        ):
+            result = await module._score_spf("example.com")
+        detail_text = " ".join(result.details)
+        assert "allall" not in detail_text, f"Doppeltes 'all' fuer Qualifier {qualifier!r}: {detail_text}"
+
+
+@pytest.mark.asyncio
+async def test_spf_missing_all_mechanism_handled_without_crashing():
+    """catch_all_qualifier kann auch None sein (kein 'all'-Mechanismus
+    im Record) -- durfte vorher zu 'Qualifier Noneall' fuehren."""
+    from app.modules.security.domain_security_check import DomainSecurityCheckModule
+
+    module = DomainSecurityCheckModule()
+    with patch(
+        "app.modules.security.domain_security_check.SpfCheckModule.run",
+        new=AsyncMock(return_value=_make_spf_output(True, None)),
+    ):
+        result = await module._score_spf("example.com")
+    detail_text = " ".join(result.details)
+    assert "None" not in detail_text

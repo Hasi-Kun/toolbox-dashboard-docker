@@ -52,13 +52,11 @@ services:
       - webnet
       - toolbox-internal
 
-  # Read-only Docker-API-Proxy fuer die Dashboard-Container-Uebersicht.
+  # Read-only Docker-API-Proxy fuer die Dashboard-Container-Uebersicht +
+  # gezielten Neustart der eigenen Toolbox-Container.
   # WICHTIG: toolbox-backend bekommt NIEMALS direkten Zugriff auf
   # /var/run/docker.sock (das waere effektiv root auf dem Host). Stattdessen
-  # nur dieser Proxy, der den echten Socket read-only mountet und ALLE
-  # schreibenden Operationen (Start/Stop/Exec/Create/...) global mit
-  # POST=0 deaktiviert -- selbst wenn das Backend kompromittiert wuerde,
-  # kaeme man ueber diesen Proxy nicht an Kontrolle ueber andere Container.
+  # nur dieser Proxy, der den echten Socket read-only mountet.
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:latest
     container_name: toolbox-docker-proxy
@@ -68,18 +66,35 @@ services:
     environment:
       - CONTAINERS=1
       - INFO=1
-      - POST=0
-      # ALLOW_RESTARTS ist bewusst EIN eigenstaendiger Schalter, unabhaengig
-      # vom POST-Hauptschalter (containers/{id}/stop|restart|kill) -- damit
-      # kann das Dashboard einzelne Toolbox-Container neu starten, OHNE
-      # POST=1 zu setzen (das wuerde zusaetzlich Create/Delete/Exec/etc.
-      # oeffnen). Das Backend selbst validiert zusaetzlich, dass NUR
-      # Container aus der eigenen Toolbox-Stack neugestartet werden
-      # koennen (siehe app/api/v1/endpoints/system.py) -- diese Env-Var
-      # allein wuerde technisch jeden Container auf dem Host erlauben.
+      # KORREKTUR (vorheriger Bug -- "Neustart funktioniert nicht"):
+      # ALLOW_RESTARTS ist entgegen einer frueheren Annahme dieser
+      # Konfiguration NICHT unabhaengig vom POST-Hauptschalter nutzbar --
+      # bestaetigt im aktuellen haproxy.cfg des Projekts (github.com/
+      # Tecnativa/docker-socket-proxy) UND in dessen Issue #101
+      # "ALLOW_RESTARTS doesn't work": die allererste Regel lautet
+      # "http-request deny unless METH_GET || POST", die bei JEDER
+      # POST-Anfrage (Restart ist POST) SOFORT greift und die
+      # nachfolgende ALLOW_RESTARTS-Regel nie erreicht wird, wenn POST=0
+      # ist. POST=1 ist also zwingend Voraussetzung.
+      - POST=1
       - ALLOW_RESTARTS=1
-      # Alles andere bleibt beim sicheren Default (0): kein EXEC, kein BUILD,
-      # keine IMAGES/VOLUMES/NETWORKS/SECRETS/SWARM-Zugriff, kein CREATE/DELETE.
+      # WICHTIGER SICHERHEITS-HINWEIS (bewusste, transparente Abwaegung):
+      # POST=1 in Kombination mit dem bereits aktiven CONTAINERS=1
+      # oeffnet auf Proxy-Ebene NICHT NUR den Neustart, sondern
+      # technisch auch das Erstellen/Loeschen beliebiger Container
+      # (POST /containers/create, DELETE /containers/{id}) -- die
+      # CONTAINERS-Regel im Proxy unterscheidet nicht nach HTTP-Methode,
+      # nur nach Pfad. Die eigentliche Sicherheitsgrenze liegt deshalb
+      # ausschliesslich im BACKEND selbst (siehe TOOLBOX_CONTAINER_NAMES
+      # in app/api/v1/endpoints/system.py) -- das Backend ruft niemals
+      # Create/Delete auf, aber ein kompromittierter Backend-Container
+      # KOENNTE es jetzt technisch tun, was vorher (POST=0) nicht
+      # moeglich war. Diese Abwaegung ist notwendig, um den Neustart
+      # ueberhaupt funktionsfaehig zu machen -- der zugrunde liegende
+      # Proxy bietet keine feinere Kontrolle (kein "POST nur fuer
+      # restart, nicht fuer create" moeglich).
+      # Alles andere bleibt beim sicheren Default (0): kein EXEC, kein
+      # BUILD, keine IMAGES/VOLUMES/NETWORKS/SECRETS/SWARM-Zugriff.
     networks:
       - toolbox-internal
     # Falls der Start auf einem SELinux-Host fehlschlaegt: 'privileged: true'

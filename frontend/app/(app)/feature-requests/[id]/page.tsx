@@ -230,5 +230,6 @@ export default function FeatureRequestDetailPage() {
               </form>
             </>
           )}
-        </main>  );
+        </main>
+  );
 }

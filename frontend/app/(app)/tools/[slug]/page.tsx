@@ -7,6 +7,7 @@ import { ArrowLeft, ShieldAlert, Star } from "lucide-react";
 import { ToolRunner } from "@/components/tool-runner";
 import { ToolConsole } from "@/components/tool-console";
 import { ScanQueueStatus } from "@/components/scan-queue-status";
+import { CheatsheetSidePanel } from "@/components/cheatsheet-side-panel";
 import { TOOL_FORMS } from "@/lib/tool-forms";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
@@ -150,7 +151,14 @@ export default function ToolPage() {
                   <ToolConsole fixedSlug="testssl-deep-scan" placeholder="example.com" introLines={TESTSSL_CONSOLE_INTRO} />
                 </div>
               )}
-              {tool.category === "nmap" && tool.slug !== "nikto-scan" && (
+              {/* Bugfix: hiess vor der Kategorien-Reorganisation "nmap"
+                  (siehe git-Historie), die Kategorie wurde seitdem zu
+                  "scanner" umbenannt UND testssl-deep-scan kam als
+                  weiteres Mitglied dazu -- ohne die Anpassung waere die
+                  Nmap-Konsole nie mehr angezeigt worden, und
+                  testssl-deep-scan haette faelschlich versucht, sie
+                  ebenfalls anzuzeigen. */}
+              {tool.category === "scanner" && tool.slug !== "nikto-scan" && tool.slug !== "testssl-deep-scan" && (
                 <div className="mt-4">
                   <ToolConsole
                     allowedSlugs={["nmap-quick", "nmap-top-ports", "nmap-service-detection", "nmap-os-detection", "nmap-aggressive", "nmap-udp", "nmap-host-discovery", "nmap-full-port-scan", "nmap-vuln-scan"]}
@@ -161,5 +169,8 @@ export default function ToolPage() {
               )}
             </>
           )}
-        </main>  );
+
+          <CheatsheetSidePanel toolSlug={params.slug} />
+        </main>
+  );
 }

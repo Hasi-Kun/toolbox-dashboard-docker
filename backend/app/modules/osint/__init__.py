@@ -1,3 +1,3 @@
 """OSINT-Kategorie: Subdomain Bruteforce, ASN Lookup, Wayback Machine History."""
 
-from app.modules.osint import asn_lookup, cloud_bucket_finder, email_harvester, git_secrets_scanner, google_dork_generator, ip_threat_intel, shodan_internetdb, subdomain_bruteforce, subdomain_takeover_checker, tech_fingerprint, typosquat_checker, wayback_history  # noqa: F401
+from app.modules.osint import asn_lookup, cloud_bucket_finder, cve_lookup, email_domain_leak_finder, email_harvester, git_secrets_scanner, google_dork_generator, ip_threat_intel, shodan_internetdb, subdomain_bruteforce, subdomain_takeover_batch_checker, subdomain_takeover_checker, tech_fingerprint, typosquat_checker, wayback_history  # noqa: F401

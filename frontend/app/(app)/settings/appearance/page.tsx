@@ -277,5 +277,6 @@ export default function AppearanceSettingsPage() {
           </div>
             </>
           )}
-        </main>  );
+        </main>
+  );
 }

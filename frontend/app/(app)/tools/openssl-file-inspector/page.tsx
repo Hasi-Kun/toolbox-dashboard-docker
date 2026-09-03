@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ClipboardPaste, FileUp, Loader2, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
+import { CheatsheetSidePanel } from "@/components/cheatsheet-side-panel";
 
 export default function OpensslFileInspectorPage() {
   const { t } = useLanguage();
@@ -152,6 +153,8 @@ export default function OpensslFileInspectorPage() {
               )}
             </div>
           )}
-        </main>  );
+          <CheatsheetSidePanel toolSlug="openssl-file-inspector" />
+        </main>
+  );
 }
 

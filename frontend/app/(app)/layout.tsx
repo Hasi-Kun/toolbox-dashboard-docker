@@ -2,6 +2,7 @@
 
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { SessionGuard } from "@/components/session-guard";
 
 /**
  * Gemeinsames Layout fuer alle authentifizierten Bereiche (Dashboard,
@@ -31,6 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Topbar />
         {children}
       </div>
+      <SessionGuard />
     </div>
   );
 }

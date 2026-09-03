@@ -136,5 +136,6 @@ export default function DisplayStylePage() {
               </button>
             </form>
           )}
-        </main>  );
+        </main>
+  );
 }

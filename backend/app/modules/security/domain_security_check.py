@@ -87,14 +87,27 @@ class DomainSecurityCheckModule(ToolModule):
         if not result.found:
             return CategoryResult(category="SPF", score=0, status="fehlt", details=["Kein SPF-Record gefunden."])
 
+        # Bugfix: result.catch_all_qualifier liefert bereits den
+        # VOLLSTAENDIGEN Text (z.B. "-all", "~all"), nicht nur das
+        # Symbol -- siehe app/modules/mail/spf.py Zeile
+        # "catch_all_qualifier = f'{all_mechanism.qualifier}all'".
+        # Der vorherige Vergleich gegen bloss "-"/"~" traf deshalb NIE
+        # zu, und die Fallback-Meldung haengte zusaetzlich nochmal "all"
+        # an einen bereits vollstaendigen String -- daraus wurde die
+        # gemeldete Fehlermeldung "Qualifier '-allall' ...".
         qualifier = result.catch_all_qualifier
-        if qualifier == "-":
+        if qualifier is None:
+            return CategoryResult(
+                category="SPF", score=20, status="warnung",
+                details=["Kein 'all'-Mechanismus am Ende des SPF-Records -- Verhalten fuer nicht gelistete Server ist undefiniert."],
+            )
+        if qualifier == "-all":
             return CategoryResult(category="SPF", score=100, status="bestanden", details=["HardFail (-all) -- entspricht BSI-Empfehlung."])
-        if qualifier == "~":
+        if qualifier == "~all":
             return CategoryResult(category="SPF", score=70, status="warnung", details=["SoftFail (~all) -- von BSI akzeptiert, HardFail waere staerker."])
         return CategoryResult(
             category="SPF", score=20, status="warnung",
-            details=[f"Qualifier '{qualifier}all' bietet laut BSI keinen ausreichenden Schutz (nur -all/~all empfohlen)."],
+            details=[f"Qualifier '{qualifier}' bietet laut BSI keinen ausreichenden Schutz (nur -all/~all empfohlen)."],
         )
 
     async def _score_dkim(self, domain: str) -> CategoryResult:

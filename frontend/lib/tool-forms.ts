@@ -46,6 +46,7 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
     { name: "record_type", label: "Record-Typ", type: "select", options: RECORD_TYPE_OPTIONS, default: "A" },
   ],
   "zone-transfer-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "dns-health-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
 
   // --- Mail ---
   "spf-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
@@ -208,6 +209,14 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   ],
   "blacklist-check": [{ name: "target", label: "Domain oder IP", type: "text", placeholder: "example.com" }],
   "ghost-sender-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "dkim-validator": [
+    {
+      name: "raw_email",
+      label: "Vollstaendiger E-Mail-Rohquelltext (Kopfzeilen + Body, z.B. per \"Original anzeigen\" im Mail-Client)",
+      type: "textarea",
+      placeholder: "Delivered-To: ...\nReceived: ...\nDKIM-Signature: v=1; a=rsa-sha256; ...\nFrom: ...\nTo: ...\nSubject: ...\n\n(Body der Nachricht)",
+    },
+  ],
   "dkim-signature-inspector": [
     {
       name: "dkim_signature_header",
@@ -247,13 +256,23 @@ export const TOOL_FORMS: Record<string, FieldSpec[]> = {
   // --- OSINT ---
   "subdomain-bruteforce": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "asn-lookup": [{ name: "target", label: "IP oder Domain", type: "text", placeholder: "8.8.8.8" }],
+  "ip-threat-intel": [{ name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" }],
+  "cve-lookup": [{ name: "cve_id", label: "CVE-ID", type: "text", placeholder: "CVE-2021-44228" }],
+  "log4j-vuln-tester": [
+    { name: "url", label: "Ziel-URL", type: "text", placeholder: "https://example.com" },
+    { name: "callback_domain", label: "Eigene Callback-Domain (OOB, z.B. interactsh/Canarytokens)", type: "text", placeholder: "abc123.interact.sh" },
+  ],
   "wayback-history": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "shodan-internetdb": [{ name: "ip", label: "IP-Adresse", type: "text", placeholder: "8.8.8.8" }],
   "email-harvester": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
+  "email-domain-leak-finder": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "sri-checker": [{ name: "url", label: "URL", type: "text", placeholder: "https://example.com" }],
   "domain-security-check": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "typosquat-checker": [{ name: "domain", label: "Domain", type: "text", placeholder: "example.com" }],
   "subdomain-takeover-checker": [{ name: "subdomain", label: "Subdomain", type: "text", placeholder: "forgotten.example.com" }],
+  "subdomain-takeover-batch-checker": [
+    { name: "subdomains", label: "Subdomains (eine pro Zeile, max. 50)", type: "textarea", placeholder: "shop.example.com\nblog.example.com\nold-app.example.com" },
+  ],
   "cloud-bucket-finder": [{ name: "name", label: "Firmen-/Projektname", type: "text", placeholder: "meinefirma" }],
   "git-secrets-scanner": [
     { name: "query", label: "Suchbegriff (Domain/Firmenname)", type: "text", placeholder: "meinefirma.de" },

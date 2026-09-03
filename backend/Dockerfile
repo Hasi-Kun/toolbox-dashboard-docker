@@ -4,12 +4,17 @@ WORKDIR /app
 
 # System-Tools, die spätere Module (whois, dig) brauchen werden.
 # Bewusst schlank gehalten -- nmap NICHT hier, das lebt im toolbox-scanner.
+# curl: fuer die Curl-Webshell (echte curl-Befehle ausfuehren, siehe
+# app/api/v1/endpoints/curl_webshell.py) -- bewusst der ECHTE Binary statt
+# einer httpx-Nachbildung, damit tatsaechlich eigene curl-Flags/-Syntax
+# funktionieren, wie in der Feature-Anfrage gefordert.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     whois \
     dnsutils \
     iputils-ping \
     traceroute \
     openssl \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

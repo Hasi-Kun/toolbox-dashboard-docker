@@ -28,7 +28,7 @@ const STATE_COLOR: Record<string, string> = {
  * Sicherheitsgrenze (nur eigene Container, Admin-only, Audit-Log) liegt
  * im Backend, dieses Popup ist nur die Bedienoberflaeche dafuer.
  */
-export function DockerStatusModal({ onClose }: { onClose: () => void }) {
+export function DockerStatusModal({ onClose, embedded = false }: { onClose: () => void; embedded?: boolean }) {
   const { t } = useLanguage();
   const [containers, setContainers] = useState<Container[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +68,85 @@ export function DockerStatusModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const content = (
+    <>
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-display text-base text-ink">
+          <Boxes className="h-4 w-4" /> {t("docker_modal.title")}
+        </h2>
+        {!embedded && (
+          <button type="button" onClick={onClose} className="text-ink-muted hover:text-ink">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-ink-muted">{t("docker_modal.subtitle")}</p>
+
+      {error && (
+        <p className="mt-3 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-4 space-y-2">
+        {containers === null && !error && (
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("docker_modal.loading")}
+          </p>
+        )}
+
+        {containers?.map((c) => (
+          <div
+            key={c.name}
+            className="flex items-center justify-between rounded-lg border border-base-border bg-base p-3"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${STATE_COLOR[c.state] ?? "bg-ink-muted"}`} />
+                <span className="truncate font-mono text-sm text-ink">{c.name}</span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-ink-muted">{c.status}</p>
+            </div>
+
+            {confirming === c.name ? (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-xs text-ink-muted">{t("docker_modal.confirm_question")}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRestart(c.name)}
+                  className="rounded-lg bg-critical/15 px-2 py-1 text-xs font-medium text-critical hover:bg-critical/25"
+                >
+                  {t("docker_modal.confirm_yes")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(null)}
+                  className="rounded-lg border border-base-border px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                >
+                  {t("docker_modal.confirm_no")}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirming(c.name)}
+                disabled={restarting !== null}
+                title={t("docker_modal.restart_button")}
+                className="ml-2 shrink-0 rounded-lg border border-base-border p-1.5 text-ink-muted hover:border-signal/40 hover:text-signal disabled:opacity-50"
+              >
+                {restarting === c.name ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card">{content}</div>;
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -80,74 +159,7 @@ export function DockerStatusModal({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-display text-base text-ink">
-            <Boxes className="h-4 w-4" /> {t("docker_modal.title")}
-          </h2>
-          <button type="button" onClick={onClose} className="text-ink-muted hover:text-ink">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-ink-muted">{t("docker_modal.subtitle")}</p>
-
-        {error && (
-          <p className="mt-3 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-4 space-y-2">
-          {containers === null && !error && (
-            <p className="flex items-center gap-2 text-sm text-ink-muted">
-              <Loader2 className="h-4 w-4 animate-spin" /> {t("docker_modal.loading")}
-            </p>
-          )}
-
-          {containers?.map((c) => (
-            <div
-              key={c.name}
-              className="flex items-center justify-between rounded-lg border border-base-border bg-base p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${STATE_COLOR[c.state] ?? "bg-ink-muted"}`} />
-                  <span className="truncate font-mono text-sm text-ink">{c.name}</span>
-                </div>
-                <p className="mt-0.5 truncate text-xs text-ink-muted">{c.status}</p>
-              </div>
-
-              {confirming === c.name ? (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="text-xs text-ink-muted">{t("docker_modal.confirm_question")}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRestart(c.name)}
-                    className="rounded-lg bg-critical/15 px-2 py-1 text-xs font-medium text-critical hover:bg-critical/25"
-                  >
-                    {t("docker_modal.confirm_yes")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirming(null)}
-                    className="rounded-lg border border-base-border px-2 py-1 text-xs text-ink-muted hover:text-ink"
-                  >
-                    {t("docker_modal.confirm_no")}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirming(c.name)}
-                  disabled={restarting !== null}
-                  title={t("docker_modal.restart_button")}
-                  className="ml-2 shrink-0 rounded-lg border border-base-border p-1.5 text-ink-muted hover:border-signal/40 hover:text-signal disabled:opacity-50"
-                >
-                  {restarting === c.name ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        {content}
       </div>
     </div>
   );

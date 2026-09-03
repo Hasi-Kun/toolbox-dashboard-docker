@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { categories } from "@/lib/categories";
+import { SPECIAL_TOOLS } from "@/lib/special-tools";
+import { SUBCATEGORIES } from "@/lib/subcategories";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -17,9 +19,17 @@ type Tool = {
   requires_admin: boolean;
 };
 
+type DisplayTool = {
+  slug: string;
+  name: string;
+  description: string;
+  requiresAdmin: boolean;
+  isActiveScan: boolean;
+  isUpload: boolean;
+};
+
 export default function CategoryPage() {
   const params = useParams<{ slug: string }>();
-  const router = useRouter();
   const { t } = useLanguage();
   const [tools, setTools] = useState<Tool[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,98 +49,116 @@ export default function CategoryPage() {
 
     fetch("/api/tools")
       .then((res) => {
-        // 401 = Session-Cookie vorhanden, aber ungueltig geworden (z.B.
-        // Redis-Session-Speicher beim letzten Neustart geleert) --
-        // direkt zum Login statt einer kryptischen Fehlermeldung.
-        if (res.status === 401) {
-          router.replace("/login");
-          return null;
-        }
+        // Frueher wurde hier bei 401 still zu /login umgeleitet -- das
+        // uebernimmt jetzt zentral <SessionGuard /> im (app)-Layout, MIT
+        // erklaerendem Hinweis-Popup. Hier nur noch der normale
+        // Fehlerfall fuer eine tatsaechlich fehlgeschlagene Anfrage.
         if (!res.ok) throw new Error("Tools konnten nicht geladen werden");
         return res.json();
       })
       .then((all: Tool[] | null) => {
-        if (all) setTools(all.filter((t) => t.category === params.slug));
+        if (all) setTools(all.filter((tool) => tool.category === params.slug));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Fehler"));
-  }, [params.slug, router]);
+  }, [params.slug]);
+
+  // Registrierte Tools UND Datei-Upload-Sondertools (siehe special-tools.ts)
+  // zu einer gemeinsamen Liste zusammenfuehren, damit beide gleichermassen
+  // gruppiert/dargestellt werden -- vorher zwei getrennte Render-Bloecke,
+  // was Unterkategorien-Gruppierung unmoeglich gemacht haette.
+  const allDisplayTools: DisplayTool[] = [
+    ...(tools ?? [])
+      .filter((tool) => isAdmin || !tool.requires_admin)
+      .map((tool) => ({
+        slug: tool.slug,
+        name: t(`tools.${tool.slug}.name` as TranslationKey),
+        description: t(`tools.${tool.slug}.description` as TranslationKey),
+        requiresAdmin: tool.requires_admin,
+        isActiveScan: tool.is_active_scan,
+        isUpload: false,
+      })),
+    ...SPECIAL_TOOLS.filter((s) => s.category === params.slug).map((special) => ({
+      slug: special.slug,
+      name: special.name,
+      description: special.description,
+      requiresAdmin: false,
+      isActiveScan: false,
+      isUpload: true,
+    })),
+  ];
+
+  const groups = SUBCATEGORIES[params.slug];
+  const byslug = new Map(allDisplayTools.map((tool) => [tool.slug, tool]));
+
+  // Gruppierte Darstellung (Reihenfolge/Zuordnung aus subcategories.ts),
+  // plus eine "Weitere"-Auffanggruppe fuer alles, was dort (noch) nicht
+  // zugeordnet ist -- neue Tools verschwinden so nie unsichtbar.
+  const groupedSlugs = new Set(groups?.flatMap((g) => g.tools) ?? []);
+  const ungrouped = allDisplayTools.filter((tool) => !groupedSlugs.has(tool.slug));
 
   return (
     <main className="flex-1 overflow-y-auto p-6">
-          <h1 className="font-display text-2xl text-ink">{categoryName}</h1>
-          <p className="mt-1 text-sm text-ink-muted">{categoryDescription}</p>
+      <h1 className="font-display text-2xl text-ink">{categoryName}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{categoryDescription}</p>
 
-          {error && (
-            <p className="mt-4 flex items-center gap-2 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
-              <AlertCircle className="h-4 w-4" /> {error}
-            </p>
-          )}
+      {error && (
+        <p className="mt-4 flex items-center gap-2 rounded-lg border border-critical/30 bg-critical/10 px-3 py-2 text-sm text-critical">
+          <AlertCircle className="h-4 w-4" /> {error}
+        </p>
+      )}
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tools?.filter((tool) => isAdmin || !tool.requires_admin).map((tool) => (
-              <Link
-                key={tool.slug}
-                href={`/tools/${tool.slug}`}
-                className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-display text-base text-ink">{t(`tools.${tool.slug}.name` as TranslationKey)}</p>
-                  <div className="flex shrink-0 gap-1.5">
-                    {tool.requires_admin && (
-                      <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">
-                        Admin
-                      </span>
-                    )}
-                    {tool.is_active_scan && (
-                      <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[10px] text-warn">
-                        Scan
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <p className="mt-1 text-sm text-ink-muted">{t(`tools.${tool.slug}.description` as TranslationKey)}</p>
-                <p className="mt-3 font-mono text-xs text-ink-muted">{tool.slug}</p>
-              </Link>
-            ))}
+      {tools === null && !error && <p className="mt-6 text-sm text-ink-muted">{t("category_page.loading")}</p>}
 
-            {params.slug === "certificates" && (
-              <Link
-                href="/tools/openssl-file-inspector"
-                className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-display text-base text-ink">OpenSSL Datei-Inspektor</p>
-                  <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">Upload</span>
-                </div>
-                <p className="mt-1 text-sm text-ink-muted">
-                  Zertifikat, PKCS#7/S-MIME oder CSR hochladen und analysieren -- Datei wird sofort danach geloescht.
-                </p>
-                <p className="mt-3 font-mono text-xs text-ink-muted">openssl-file-inspector</p>
-              </Link>
-            )}
+      {tools !== null && allDisplayTools.length === 0 && (
+        <p className="mt-6 text-sm text-ink-muted">{t("category_page.empty")}</p>
+      )}
 
-            {params.slug === "security" && (
-              <Link
-                href="/tools/canary-token-scan"
-                className="rounded-xl border border-base-border bg-base-elevated p-5 shadow-card transition-colors hover:border-signal/40"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-display text-base text-ink">Canary-Token-Scanner</p>
-                  <span className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">Upload</span>
-                </div>
-                <p className="mt-1 text-sm text-ink-muted">
-                  Office-Dokumente/PDFs auf eingebettete Tracking-URLs pruefen -- ohne die Datei zu oeffnen, ohne Netzwerkanfrage.
-                </p>
-                <p className="mt-3 font-mono text-xs text-ink-muted">canary-token-scan</p>
-              </Link>
-            )}
+      <div className="mt-6 space-y-8">
+        {groups?.map((group) => {
+          const groupTools = group.tools.map((slug) => byslug.get(slug)).filter((t): t is DisplayTool => t !== undefined);
+          if (groupTools.length === 0) return null;
+          return (
+            <section key={group.name}>
+              <h2 className="text-xs font-medium uppercase tracking-wider text-ink-muted">{group.name}</h2>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {groupTools.map((tool) => (
+                  <ToolTile key={tool.slug} tool={tool} />
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
-            {tools?.length === 0 && (
-              <p className="text-sm text-ink-muted">
-                Noch keine Tools in dieser Kategorie implementiert.
-              </p>
-            )}
-          </div>
-        </main>
+        {ungrouped.length > 0 && (
+          <section>
+            {groups && <h2 className="text-xs font-medium uppercase tracking-wider text-ink-muted">{t("category_page.more")}</h2>}
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {ungrouped.map((tool) => (
+                <ToolTile key={tool.slug} tool={tool} />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function ToolTile({ tool }: { tool: DisplayTool }) {
+  return (
+    <Link
+      href={`/tools/${tool.slug}`}
+      className="group rounded-lg border border-base-border bg-base-elevated p-3.5 shadow-card transition-colors hover:border-signal/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-display text-sm text-ink">{tool.name}</p>
+        <div className="flex shrink-0 gap-1">
+          {tool.isUpload && <span className="rounded-full bg-signal/10 px-1.5 py-0.5 text-[9px] text-signal">Upload</span>}
+          {tool.requiresAdmin && <span className="rounded-full bg-signal/10 px-1.5 py-0.5 text-[9px] text-signal">Admin</span>}
+          {tool.isActiveScan && <span className="rounded-full bg-warn/10 px-1.5 py-0.5 text-[9px] text-warn">Scan</span>}
+        </div>
+      </div>
+      <p className="mt-1 truncate text-xs text-ink-muted group-hover:whitespace-normal">{tool.description}</p>
+    </Link>
   );
 }

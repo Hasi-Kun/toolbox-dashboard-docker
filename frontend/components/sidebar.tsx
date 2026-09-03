@@ -17,9 +17,11 @@ import {
   TerminalSquare,
   KeyRound,
   Mail,
+  Boxes,
 } from "lucide-react";
 import { categories } from "@/lib/categories";
 import { categoryIconBySlug, DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
+import { useCategoryToolCounts } from "@/lib/use-category-tool-counts";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
 import type { TranslationKey } from "@/lib/i18n";
@@ -33,6 +35,7 @@ export function Sidebar() {
   const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const toolCounts = useCategoryToolCounts();
 
   useEffect(() => {
     const stored = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
@@ -126,7 +129,7 @@ export function Sidebar() {
                   href={href}
                   icon={Icon}
                   label={t(nameKey) !== nameKey ? t(nameKey) : category.name}
-                  badge={category.toolCount}
+                  badge={toolCounts[category.slug] ?? category.toolCount}
                   active={pathname === href}
                   collapsed={collapsed}
                 />
@@ -154,6 +157,11 @@ export function Sidebar() {
           {isAdmin && (
             <li>
               <SidebarLink href="/settings/email-aliases" icon={Mail} label={t("sidebar.email_aliases")} active={pathname === "/settings/email-aliases"} collapsed={collapsed} />
+            </li>
+          )}
+          {isAdmin && (
+            <li>
+              <SidebarLink href="/settings/docker" icon={Boxes} label={t("sidebar.docker")} active={pathname === "/settings/docker"} collapsed={collapsed} />
             </li>
           )}
           {isAdmin && (

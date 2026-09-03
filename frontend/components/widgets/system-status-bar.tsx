@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Boxes, Cpu, MemoryStick, Users } from "lucide-react";
+import { Activity, Cpu, MemoryStick, Users } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
 import { useCountUp } from "@/lib/use-count-up";
-import { DockerStatusModal } from "@/components/widgets/docker-status-modal";
 
 type Status = "online" | "degraded" | "offline";
 
@@ -15,7 +14,6 @@ type SystemInfo = {
   memory_total_bytes: number;
 };
 
-type DockerStatus = { total: number; running: number };
 type OnlineUsers = { count: number; usernames: string[] };
 
 function formatBytes(bytes: number): string {
@@ -29,39 +27,32 @@ const statusColor: Record<Status, string> = {
 };
 
 /**
- * Ersetzt die urspruenglichen 4-5 einzeln umrandeten Karten durch eine
- * ruhige, aber jetzt visuell reichere Reihe individueller Statuskarten
- * (Icon, animierte Count-up-Zahl, Mini-Fortschrittsbalken, gestaffelte
- * Einblend-Animation) -- deutlich naeher an einem hochwertigen
- * Dashboard-Look, ohne die urspruenglich behobene Unordnung (5 separat
- * umrandete Boxen mit doppeltem Rahmen+Schatten-Gewicht) wieder
- * einzufuehren: alle Karten teilen sich denselben visuellen Rhythmus.
+ * Zeigt genau die vier Werte, die im Dashboard-Ueberblick relevant sind:
+ * Server-Status, CPU, RAM, angemeldete Nutzer. Der Docker-Container-
+ * Status wurde bewusst rausgenommen (siehe Feedback) -- die Verwaltung
+ * einzelner Container (inkl. Neustart) ist weiterhin verfuegbar, aber
+ * jetzt unter Verwaltung -> Docker-Container statt im taeglichen
+ * Dashboard-Ueberblick.
  */
 export function SystemStatusBar() {
   const { t } = useLanguage();
   const [info, setInfo] = useState<SystemInfo | null>(null);
-  const [docker, setDocker] = useState<DockerStatus | null>(null);
   const [online, setOnline] = useState<OnlineUsers | null>(null);
   const [restricted, setRestricted] = useState(false);
-  const [dockerModalOpen, setDockerModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [infoRes, dockerRes, onlineRes] = await Promise.all([
+        const [infoRes, onlineRes] = await Promise.all([
           fetch("/api/system/info"),
-          fetch("/api/system/docker"),
           fetch("/api/system/online-users"),
         ]);
-        if (infoRes.status === 403 || dockerRes.status === 403) {
+        if (infoRes.status === 403) {
           if (!cancelled) setRestricted(true);
-        } else if (infoRes.ok && dockerRes.ok) {
-          if (!cancelled) {
-            setInfo(await infoRes.json());
-            setDocker(await dockerRes.json());
-          }
+        } else if (infoRes.ok) {
+          if (!cancelled) setInfo(await infoRes.json());
         }
         if (onlineRes.ok && !cancelled) setOnline(await onlineRes.json());
       } catch {
@@ -80,7 +71,6 @@ export function SystemStatusBar() {
   const status: Status = "online";
   const cpu = useCountUp(info?.cpu_percent ?? 0);
   const ram = useCountUp(info?.memory_percent ?? 0);
-  const dockerRunning = useCountUp(docker?.running ?? 0);
   const onlineCount = useCountUp(online?.count ?? 0);
 
   return (
@@ -122,20 +112,12 @@ export function SystemStatusBar() {
             progress={info ? info.memory_percent : 0}
             delayMs={120}
           />
-          <StatCard
-            icon={Boxes}
-            label={t("dashboard.docker")}
-            value={docker ? `${Math.round(dockerRunning)}/${docker.total}` : "—"}
-            progress={docker && docker.total > 0 ? (docker.running / docker.total) * 100 : 0}
-            delayMs={180}
-            onClick={() => setDockerModalOpen(true)}
-          />
         </>
       )}
 
       <div
         className="card-interactive rounded-xl border border-base-border bg-base-elevated p-4 shadow-card animate-stagger-in"
-        style={{ animationDelay: "240ms" }}
+        style={{ animationDelay: "180ms" }}
       >
         <div className="flex items-center gap-2 text-ink-muted">
           <Users className="h-3.5 w-3.5" />
@@ -148,8 +130,6 @@ export function SystemStatusBar() {
           </p>
         )}
       </div>
-
-      {dockerModalOpen && <DockerStatusModal onClose={() => setDockerModalOpen(false)} />}
     </div>
   );
 }
@@ -161,7 +141,6 @@ function StatCard({
   hint,
   progress,
   delayMs,
-  onClick,
 }: {
   icon: typeof Activity;
   label: string;
@@ -169,16 +148,12 @@ function StatCard({
   hint?: string;
   progress: number;
   delayMs: number;
-  onClick?: () => void;
 }) {
   const barColor = progress >= 85 ? "bg-critical" : progress >= 65 ? "bg-warn" : "bg-signal";
-  const Wrapper = onClick ? "button" : "div";
 
   return (
-    <Wrapper
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      className={`card-interactive rounded-xl border border-base-border bg-base-elevated p-4 text-left shadow-card animate-stagger-in ${onClick ? "cursor-pointer" : ""}`}
+    <div
+      className="card-interactive rounded-xl border border-base-border bg-base-elevated p-4 shadow-card animate-stagger-in"
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div className="flex items-center gap-2 text-ink-muted">
@@ -194,6 +169,6 @@ function StatCard({
           style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
         />
       </div>
-    </Wrapper>
+    </div>
   );
 }

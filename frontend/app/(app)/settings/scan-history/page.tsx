@@ -155,5 +155,6 @@ export default function ScanHistoryPage() {
               )}
             </>
           )}
-        </main>  );
+        </main>
+  );
 }

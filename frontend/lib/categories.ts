@@ -17,13 +17,13 @@ export type Category = {
 // FastViewer-Statuscheck sind dafuer nach "network" gewandert, da sie
 // inhaltlich Lookup-/Connectivity-Tools sind, keine Konverter.
 export const categories: Category[] = [
-  { slug: "dns", name: "DNS", description: "Lookup, Records, Propagation", toolCount: 4 },
-  { slug: "mail", name: "Mail", description: "SMTP, SPF, DKIM, DMARC, DANE, Blacklist", toolCount: 10 },
+  { slug: "dns", name: "DNS", description: "Lookup, Records, Propagation, Health-Check", toolCount: 5 },
+  { slug: "mail", name: "Mail", description: "SMTP, SPF, DKIM, DMARC, DANE, Blacklist", toolCount: 11 },
   { slug: "network", name: "Netzwerk", description: "Ping, Traceroute, Whois, Geolocation", toolCount: 6 },
   { slug: "scanner", name: "Scanner", description: "Nmap, Nikto, testssl.sh -- aktive Scans", toolCount: 11 },
-  { slug: "security", name: "Security", description: "SSL, Header, Score, CVE", toolCount: 18 },
-  { slug: "website", name: "Website-Analyse", description: "Performance, SEO, Links", toolCount: 5 },
+  { slug: "security", name: "Security", description: "SSL, Header, Score, CVE", toolCount: 20 },
+  { slug: "website", name: "Website-Analyse", description: "Performance, SEO, Links", toolCount: 6 },
   { slug: "converter", name: "Converter", description: "Formatumwandlung, Hashes, Generatoren", toolCount: 10 },
   { slug: "certificates", name: "Zertifikate", description: "SSL-Ketten, Ablauf, OCSP", toolCount: 4 },
-  { slug: "osint", name: "OSINT", description: "Subdomains, ASN, Wayback-Historie", toolCount: 11 },
+  { slug: "osint", name: "OSINT", description: "Subdomains, ASN, Wayback-Historie", toolCount: 15 },
 ];
